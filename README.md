@@ -40,22 +40,24 @@ echo $null >> filename
 
 # First login
 
-#### Find the local IP address of the Raspberry Pi
+Find the local IP address of the Raspberry Pi
   - [Fing app](https://play.google.com/store/apps/details?id=com.overlook.android.fing&hl=en&gl=US) for Android.
 
-#### SSH to the Raspberry Pi with default user `pi` and password `raspberry`
+SSH to the Raspberry Pi with default user `pi` and password `raspberry`
 
 ``` bash
 ssh pi@192.168.178.31
 ```
 
-#### Update OS
+#### Update and configure
+
+Update OS
 
 ``` bash
 sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get clean
 ```
 
-#### raspi-config
+raspi-config
 
 ``` bash
 sudo raspi-config
@@ -118,7 +120,7 @@ Create new user and copy user's `pi` data (replace *`{newusername}`* with the ne
 usermod -m -d /home/{newusername} -l {newusername} pi
 ```
 
-Add new user to ***sudoers***:
+##### Add new user to ***sudoers***:
 ``` bash
 visudo
 ```
@@ -127,9 +129,9 @@ Replace user `pi` or add a new line if not there (replace *`{newusername}`* with
 {newusername}   ALL=(ALL)   NOPASSWD:  ALL
 ```
 
-
-
 #### Add SSH keys
+
+
 
 <br>
 <br>
