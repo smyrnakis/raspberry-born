@@ -49,7 +49,7 @@ SSH to the Raspberry Pi with default user `pi` and password `raspberry`
 ssh pi@192.168.178.31
 ```
 
-#### Update and configure
+### Update and configure
 
 Update OS
 
@@ -87,7 +87,7 @@ Go to `Advanced Options` and select `Expand Filesystem`.
 
 # Initial settings
 
-#### Change default password
+### Change default password
 ``` bash
 pi@raspberrypi:~ $ passwd
 Changing password for pi.
@@ -97,7 +97,7 @@ Retype new password:
 passwd: password updated successfully
 ```
 
-#### Rename default user `pi`
+### Rename default user `pi`
 
 Set `root` password:
 ``` bash
@@ -109,7 +109,7 @@ passwd: password updated successfully
 ```
 
 Permit `root` login by changing `PermitRootLogin` to `yes` in `/etc/ssh/sshd_config`:
-```bash
+``` bash
 sudo nano /etc/ssh/sshd_config	-->	PermitRootLogin yes
 ```
 
@@ -120,7 +120,7 @@ Create new user and copy user's `pi` data (replace *`{newusername}`* with the ne
 usermod -m -d /home/{newusername} -l {newusername} pi
 ```
 
-##### Add new user to ***sudoers***:
+### Add new user to ***sudoers***:
 ``` bash
 visudo
 ```
@@ -129,21 +129,24 @@ Replace user `pi` or add a new line if not there (replace *`{newusername}`* with
 {newusername}   ALL=(ALL)   NOPASSWD:  ALL
 ```
 
-#### Add SSH keys
+### Add SSH keys
 
 Generate keys:
 
 ##### Windows
 
-Use [PuTTY](https://www.putty.org/) *"PuTTY Key Generator"*.
+Use [PuTTY](https://www.putty.org/) *"PuTTY Key Generator"*
+
+- Use both *Save private key* and *Conversions* --> *Export OpenSSH key*.
+
 
 ##### Mac
 
 ``` bash
+# TO_BE_FIXED
 ```
 
 Import keys:
-
 ``` bash
 cd
 mkdir .ssh
@@ -151,6 +154,34 @@ touch .ssh/authorized_keys
 echo "ssh-rsa....." >> .ssh/authorized_keys
 chmod 700 .ssh
 chmod 600 .ssh/authorized_keys
+```
+
+Logout `root` user:
+``` bash
+logout
+```
+
+<br>
+
+*Repeat **"Add SSH keys"** for main user.*
+
+<br>
+
+### Secure `root` user
+
+Disallow `root` login using password by changing `PermitRootLogin` to `prohibit-password` in `/etc/ssh/sshd_config`:
+``` bash
+sudo nano /etc/ssh/sshd_config	-->	PermitRootLogin prohibit-password
+```
+
+Restart SSH service:
+``` bash
+sudo service ssh restart
+```
+
+Delete and lock password for `root` user:
+``` bash
+sudo passwd -d -l root
 ```
 
 <br>
