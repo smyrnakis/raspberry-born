@@ -131,7 +131,27 @@ Replace user `pi` or add a new line if not there (replace *`{newusername}`* with
 
 #### Add SSH keys
 
+Generate keys:
 
+##### Windows
+
+Use [PuTTY](https://www.putty.org/) *"PuTTY Key Generator"*.
+
+##### Mac
+
+``` bash
+```
+
+Import keys:
+
+``` bash
+cd
+mkdir .ssh
+touch .ssh/authorized_keys
+echo "ssh-rsa....." >> .ssh/authorized_keys
+chmod 700 .ssh
+chmod 600 .ssh/authorized_keys
+```
 
 <br>
 <br>
