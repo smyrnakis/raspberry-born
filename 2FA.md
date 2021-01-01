@@ -16,7 +16,7 @@ Save the **secret key**, the **verification code** and the **emergency scratch c
 
 <br>
 
-``` bash
+```
 Do you want me to update your "/home/tolis/.google_authenticator" file? (y/n) y
 
 Do you want to disallow multiple uses of the same authentication
@@ -39,7 +39,7 @@ sudo nano /etc/pam.d/sshd
 
 Change the `ChallengeResponseAuthentication` to `yes` in `sshd_config`:
 ``` bash
-sudo nano /etc/ssh/sshd_config
+sudo nano /etc/ssh/sshd_config  -->  ChallengeResponseAuthentication yes
 ```
 
 Restart SSH service
