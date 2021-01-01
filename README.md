@@ -88,7 +88,7 @@ Go to `Advanced Options` and select `Expand Filesystem`.
 # Initial settings
 
 ### Change default password
-``` bash
+```
 pi@raspberrypi:~ $ passwd
 Changing password for pi.
 Current password:
@@ -100,7 +100,7 @@ passwd: password updated successfully
 ### Rename default user `pi`
 
 Set `root` password:
-``` bash
+```
 sudo passwd root
 Changing password for root.
 New password:
