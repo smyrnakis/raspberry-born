@@ -163,7 +163,7 @@ logout
 
 <br>
 
-*Repeat **"Add SSH keys"** for main user.*
+*Repeat **["Add SSH keys"](https://github.com/smyrnakis/raspberry-born#add-ssh-keys)** for main user.*
 
 <br>
 
