@@ -10,6 +10,6 @@ Comments and suggestions are always welcome!
 
 ## Index
 
-[First steps](https://github.com/smyrnakis/first-steps) - prepare SD card & initial login
+[First steps](https://github.com/smyrnakis/raspberry-born/blob/main/first-steps.md) - prepare SD card & initial login
 
-[Initial settings](https://github.com/smyrnakis/initial-settings) - change default username & password / add SSH keys
+[Initial settings](https://github.com/smyrnakis/raspberry-born/blob/main/initial-settings.md) - change default username & password / add SSH keys
