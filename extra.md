@@ -45,7 +45,7 @@ cat /var/log/auth.log | grep 'Accepted publickey'
 
 <br>
 
-#### Fix `perl: warning: Falling back to a fallback locale ("en_GB.UTF-8").`
+#### Fix "`perl: warning: Falling back to a fallback locale ("en_GB.UTF-8").`"
 ``` bash
 export LANGUAGE=en_US.UTF-8
 export LANG=en_US.UTF-8

@@ -134,6 +134,9 @@ sudo noip2 -K {PROCESS-ID}
 sudo rm /usr/local/bin/noip2
 sudo rm /usr/local/etc/no-ip2.conf
 sudo rm -rf ~/Software/noip
+
+# if auto start was enabled
+sudo rm /etc/init.d/noip2
 ```
 
 ### Extra

@@ -2,7 +2,8 @@
 
 Steps to follow for a fresh *raspbian* installation. Includes instructions for configuring:
 
-- noip DUC
+- dynamic DNS
+- oh-my-zsh
 - two-factor authentication
 - pi-hole
 - OpenVPN server
