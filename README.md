@@ -19,16 +19,22 @@ Comments and suggestions are always welcome!
 
 [Initial settings](https://github.com/smyrnakis/raspberry-born/blob/main/initial-settings.md) - change default username & password / add SSH keys
 
-[Harden security](https://github.com/smyrnakis/raspberry-born/blob/main/harden.md)
+[Harden security](https://github.com/smyrnakis/raspberry-born/blob/main/harden.md) - tips 'n' tricks to secure the Raspberry Pi
 
-[Two-factor authentication](https://github.com/smyrnakis/raspberry-born/blob/main/2FA.md)
+[Auto updates](https://github.com/smyrnakis/raspberry-born/blob/main/auto-updates.md) - configure daily automatic updates
 
-[NoIP DUC](https://github.com/smyrnakis/raspberry-born/blob/main/noip.md)
+[Two-factor authentication](https://github.com/smyrnakis/raspberry-born/blob/main/2FA.md) - require 2FA for SSH log in with password
+
+[Dynamic DNS (ddclient & noip DUC)](https://github.com/smyrnakis/raspberry-born/blob/main/noip.md) - install & configure *ddclient* or *noip DUC*
+
+[oh-my-zsh terminal](https://github.com/smyrnakis/raspberry-born/blob/main/zsh.md) - install & configure *oh-my-zsh* with *autosuggestions* and *syntax highlighting*
+
+[Pi-hole & DNSCrypt](https://github.com/smyrnakis/raspberry-born/blob/main/pihole.md) - install & configure *Pi-hole* ad-blocker and DNSCrypt
 
 <br>
 
 ## Extra
 
-[Various commands](https://github.com/smyrnakis/raspberry-born/blob/main/extra.md)
+[Various commands](https://github.com/smyrnakis/raspberry-born/blob/main/extra.md) - useful commands
 
-[Auto-start program at boot](https://github.com/smyrnakis/raspberry-born/blob/main/autostart.md)
+[Auto-start program at boot](https://github.com/smyrnakis/raspberry-born/blob/main/autostart.md) - example with *noip*
