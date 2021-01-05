@@ -1,9 +1,69 @@
 # Extra commands
 
-#### Raspberry Pi version
+#### Installed package version
+``` bash
+sudo apt list {PACKAGE-NAME}
+```
 
+#### Uninstall package
+``` bash
+# uninstall a package
+sudo apt-get purge {PACKAGE-NAME}
+    # remove : remove installation files (only)
+    # purge  : remove installation & configuration files
+
+# remove unnecessary files & dependencies
+sudo apt-get autoremove
+```
+
+<br>
+
+#### Raspberry Pi version
 ``` bash
 cat /sys/firmware/devicetree/base/model
 ```
 
 <br>
+
+#### Message Of The Day (MOTD)
+``` bash
+ls -la /etc/update-motd.d
+
+sudo nano /etc/motd
+```
+
+<br>
+
+#### Successful / failed SSH logins
+``` bash
+cat /var/log/auth.log | grep 'Accepted password'
+
+cat /var/log/auth.log | grep 'Failed password'
+
+cat /var/log/auth.log | grep 'Accepted publickey'
+```
+
+<br>
+
+#### Fix `perl: warning: Falling back to a fallback locale ("en_GB.UTF-8").`
+``` bash
+export LANGUAGE=en_US.UTF-8
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+sudo locale-gen en_US.UTF-8
+sudo dpkg-reconfigure locales
+```
+
+<br>
+
+<!--
+#### Automatic SD card backup
+[https://www.raspberrypi.org/forums/viewtopic.php?p=136912#p173999](https://www.raspberrypi.org/forums/viewtopic.php?p=136912#p173999)
+
+<br>
+
+#### Automatic reboot with *watchdog timmer*
+[https://pi.gadgetoid.com/article/who-watches-the-watcher](https://pi.gadgetoid.com/article/who-watches-the-watcher)
+
+<br>
+-->

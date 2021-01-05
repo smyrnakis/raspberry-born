@@ -2,6 +2,8 @@
 
 *Article: https://www.stuffaboutcode.com/2012/06/raspberry-pi-run-program-at-start-up.html*
 
+<br>
+
 ### Create the autorun script in `/etc/init.d/`
 ``` bash
 sudo nano /etc/init.d/{name-of-the-script}

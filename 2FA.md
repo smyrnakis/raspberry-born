@@ -12,7 +12,7 @@ google-authenticator
 Do you want authentication tokens to be time-based (y/n) y
 ```
 
-Save the **secret key**, the **verification code** and the **emergency scratch codes**.
+Scan the QR code and then save the **secret key**, the **verification code** and the **emergency scratch codes**.
 
 <br>
 
