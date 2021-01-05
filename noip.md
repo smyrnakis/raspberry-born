@@ -68,6 +68,11 @@ Allow *ddclient* through UFW:
 sudo ufw allow 80
 ```
 
+Troubleshooting:
+``` bash
+ddclient -daemon=0 -debug -verbose -noquiet
+```
+
 <br>
 
 ## Using *noip* client
