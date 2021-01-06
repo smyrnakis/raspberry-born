@@ -99,3 +99,21 @@ Instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/2FA.md
 Instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/ufw.md) .
 
 <br>
+
+### Log files
+
+- `/var/log/auth.log` : authentication attempts
+- `/var/log/mail.log` : mail server
+- `/var/log/syslog` : main log for all services
+- `/var/log/messages` : all systems log
+- `/var/log/pihole.log` : Pi-hole logs
+
+<br>
+
+### Interesting articles
+
+- [17 security tips for your Raspberry Pi](https://raspberrytips.com/security-tips-raspberry-pi/)
+
+
+
+<br>
