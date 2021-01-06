@@ -170,6 +170,23 @@ Add the following line, replacing the path as above:
 rm basic-install.sh
 ```
 
+<br>
+
+### Logs
+
+``` bash
+# print a summary, once (optimised for small screen)
+pihole -c -e
+
+# print a summary, refresh every 5" (optimised for small screen)
+pihole -c -r 5
+
+# log file
+tail -f /var/log/pihole.log
+```
+
+<br>
+
 ### Extra
 
 #### Spotify
@@ -182,6 +199,27 @@ spclient.wg.spotify.com
 ```
 
 <br>
+
+#### Hostnames
+
+In order to show the hostnames in the Pi-hole console, you can update the `/etc/hosts` file:
+
+``` bash
+127.0.0.1       localhost
+::1             localhost ip6-localhost ip6-loopback
+ff02::1         ip6-allnodes
+ff02::2         ip6-allrouters
+
+127.0.1.1       {RASPBERRY-PI-HOSTNAME}
+
+# examples bellow
+192.168.1.1     my-router
+192.168.1.2     my-phone
+```
+
+<br>
+
+#### Router configuration
 
 Do not forget to configure the router to use the Raspberry Pi's IP addresses (IPv4 & IPv6) for DNS.
 
