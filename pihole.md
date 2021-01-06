@@ -152,7 +152,7 @@ apt-get update -y && apt-get upgrade -y
 Run the `adlists-updater.sh`
 ``` bash
 sudo chmod a+x adlists-updater.sh
-sudo sh adlists-updater.sh
+sudo sh adlists-updater.sh 1
 ```
 
 ### Schedule automatic gravity update every day at 02:15
@@ -167,7 +167,7 @@ Add the following line, replacing the path as above:
 
 ### Clean up
 ``` bash
-rm basic-install.sh
+rm ~/basic-install.sh
 ```
 
 <br>
@@ -193,16 +193,15 @@ tail -f /var/log/pihole.log
 ``` bash
 # whitelist the following domain
 spclient.wg.spotify.com
-
-# More on Spotify:
-# https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60
 ```
+
+More on Spotify: [https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60](https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60)
 
 <br>
 
 #### Hostnames
 
-In order to show the hostnames in the Pi-hole console, you can update the `/etc/hosts` file:
+In order to show the hostnames in the Pi-hole console, you can update the `/etc/hosts` file and assign IP addresses to hostnames:
 
 ``` bash
 127.0.0.1       localhost
