@@ -172,9 +172,12 @@ rm ~/basic-install.sh
 
 <br>
 
-### Logs
+### Debugging
 
 ``` bash
+# check the status
+pihole status
+
 # print a summary, once (optimised for small screen)
 pihole -c -e
 
@@ -191,8 +194,13 @@ tail -f /var/log/pihole.log
 
 #### Spotify
 ``` bash
-# whitelist the following domain
+# whitelist the following domain in the admin panel
 spclient.wg.spotify.com
+```
+
+Whitelist using command line:
+``` bash
+pihole -w spclient.wg.spotify.com
 ```
 
 More on Spotify: [https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60](https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60)
@@ -225,6 +233,66 @@ Do not forget to configure the router to use the Raspberry Pi's IP addresses (IP
 To check find the IPs use:
 ``` bash
 ip a
+```
+
+<br>
+
+#### Command line usage
+
+[https://discourse.pi-hole.net/t/the-pihole-command-with-examples/738](https://discourse.pi-hole.net/t/the-pihole-command-with-examples/738)
+
+<br>
+
+#### Indicator LEDs
+
+You can add LEDs on the GPIO pins and let them blink with allowed or blocked DNS queries.
+
+Create a file in `~/Software/Hardware/pihole/pihole-LEDs.sh`
+``` bash
+mkdir ~/Software/Hardware/pihole
+touch pihole-LEDs.sh
+```
+
+Add the following code into the file : [pihole-LEDs.sh](https://github.com/smyrnakis/raspberry-born/blob/main/src/pihole-LEDs.sh)
+
+*The code above uses GPIO20 and GPIO21 for the GREEN and the RED LED respectively.*
+
+Make the script executable:
+``` bash
+chmod +x ~/Software/Hardware/pihole/pihole-LEDs.sh
+```
+
+Test the script by *uncommenting* the `echo` lines:
+``` bash
+tail -f /var/log/pihole.log | while read INPUT
+do
+    if [[ "$INPUT" == *": gravity blocked"* ]]; then
+        shortBlink red
+        echo "pihole block"     # uncomment this line
+    fi
+    if [[ "$INPUT" == *": reply"* ]]; then
+        shortBlink green
+        echo "pihole allow"     # uncomment this line
+    fi
+done
+```
+
+``` bash
+sudo bash ~/Software/Hardware/pihole/pihole-LEDs.sh
+```
+
+If you can see the LEDs blinking and the messages `pihole block` / `pihole allow` on the console, the script and the hardware are working fine!
+
+Comment out the two `echo` commands again.
+
+Set the script to run on Raspberry's boot:
+``` bash
+sudo crontab -e
+```
+
+and add the line:
+``` bash
+@reboot bash /home/{YOUR-USERNAME}/Software/Hardware/pihole/pihole-LEDs.sh
 ```
 
 <br>
