@@ -56,6 +56,26 @@ sudo dpkg-reconfigure locales
 
 <br>
 
+#### Shutdown / Reboot schedule
+Check if/when a *shutdown* or a *reboot* is scheduled:
+``` bash
+cat /run/systemd/shutdown/scheduled
+```
+Output:
+``` bash
+USEC=1610159400000000
+WARN_WALL=1
+MODE=reboot
+```
+Convert time to human-readable format:
+``` bash
+date -d "@$( awk -F '=' '/USEC/{ $2=substr($2,1,10); print $2 }' /run/systemd/shutdown/scheduled )"
+
+Sat Jan  9 04:30:00 EET 2021
+```
+
+<br>
+
 <!--
 #### Automatic SD card backup
 [https://www.raspberrypi.org/forums/viewtopic.php?p=136912#p173999](https://www.raspberrypi.org/forums/viewtopic.php?p=136912#p173999)
