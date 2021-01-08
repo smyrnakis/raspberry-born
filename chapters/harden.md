@@ -90,13 +90,13 @@ sudo iptables -D f2b-sshd {line}
 
 ### Enable 2-factor authentication
 
-Instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/2FA.md) .
+Instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/2FA.md) .
 
 <br>
 
 ### Uncomplicated Firewall (UFW)
 
-Instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/ufw.md) .
+Instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/ufw.md) .
 
 <br>
 

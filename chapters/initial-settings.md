@@ -76,6 +76,6 @@ logout
 
 <br>
 
-*Repeat **["Add SSH keys"](https://github.com/smyrnakis/raspberry-born/blob/main/initial-settings.md#add-ssh-keys)** for main user.*
+*Repeat **["Add SSH keys"](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/initial-settings.md#add-ssh-keys)** for main user.*
 
 <br>

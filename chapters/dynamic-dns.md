@@ -153,6 +153,6 @@ sudo noip2 -S
 
 #### Configure autostart at system boot
 
-Instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/autostart.md).
+Instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/autostart.md).
 
 <br>
