@@ -259,11 +259,13 @@ Add the following code into the file : [pihole-LEDs.sh](https://github.com/smyrn
 
 Make the script executable:
 ``` bash
-chmod +x ~/Software/Hardware/pihole/pihole-LEDs.sh
+chmod a+x ~/Software/Hardware/pihole/pihole-LEDs.sh
 ```
 
 Test the script by *uncommenting* the `echo` lines:
 ``` bash
+[...]
+
 tail -f /var/log/pihole.log | while read INPUT
 do
     if [[ "$INPUT" == *": gravity blocked"* ]]; then
@@ -281,7 +283,7 @@ done
 sudo bash ~/Software/Hardware/pihole/pihole-LEDs.sh
 ```
 
-If you can see the LEDs blinking and the messages `pihole block` / `pihole allow` on the console, the script and the hardware are working fine!
+If you can see the LEDs blinking and the messages `pihole block` or `pihole allow` on the console, the script and the hardware are working fine!
 
 Comment out the two `echo` commands again.
 
