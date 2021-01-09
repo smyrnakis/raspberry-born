@@ -21,6 +21,14 @@ sudo apt list {PACKAGE-NAME}
 
 <br>
 
+### Process by name (find)
+``` bash
+# find a process by name, e.g: "nano"
+ps aux | grep -i nano
+```
+
+<br>
+
 ### Raspberry Pi version
 ``` bash
 cat /sys/firmware/devicetree/base/model
