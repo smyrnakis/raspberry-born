@@ -83,4 +83,8 @@ Go to `Advanced Options` and select `Expand Filesystem`.
 
 **Reboot**
 
+``` bash
+sudo reboot
+```
+
 <br>
