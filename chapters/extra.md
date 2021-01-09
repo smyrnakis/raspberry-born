@@ -1,42 +1,9 @@
-# Extra commands
-
-#### Installed package version
-``` bash
-sudo apt list {PACKAGE-NAME}
-```
-
-#### Uninstall package
-``` bash
-# uninstall a package
-sudo apt-get purge {PACKAGE-NAME}
-    # remove : remove installation files (only)
-    # purge  : remove installation & configuration files
-
-# remove unnecessary files & dependencies
-sudo apt-get autoremove
-```
+# Extra commands and snippets
+*(shorted alphabetically)*
 
 <br>
 
-#### Raspberry Pi version
-``` bash
-cat /sys/firmware/devicetree/base/model
-```
-
-<br>
-
-#### Successful / failed SSH logins
-``` bash
-cat /var/log/auth.log | grep 'Accepted password'
-
-cat /var/log/auth.log | grep 'Failed password'
-
-cat /var/log/auth.log | grep 'Accepted publickey'
-```
-
-<br>
-
-#### Fix "`perl: warning: Falling back to a fallback locale ("en_GB.UTF-8").`"
+### Fix "`perl: warning: Falling back to a fallback locale ("en_GB.UTF-8").`"
 ``` bash
 export LANGUAGE=en_US.UTF-8
 export LANG=en_US.UTF-8
@@ -47,7 +14,21 @@ sudo dpkg-reconfigure locales
 
 <br>
 
-#### Shutdown / Reboot schedule
+### Installed package version
+``` bash
+sudo apt list {PACKAGE-NAME}
+```
+
+<br>
+
+### Raspberry Pi version
+``` bash
+cat /sys/firmware/devicetree/base/model
+```
+
+<br>
+
+### Shutdown / Reboot schedule
 Check if/when a *shutdown* or a *reboot* is scheduled:
 ``` bash
 cat /run/systemd/shutdown/scheduled
@@ -63,6 +44,30 @@ Convert time to human-readable format:
 date -d "@$( awk -F '=' '/USEC/{ $2=substr($2,1,10); print $2 }' /run/systemd/shutdown/scheduled )"
 
 Sat Jan  9 04:30:00 EET 2021
+```
+
+<br>
+
+### Successful / failed SSH logins
+``` bash
+cat /var/log/auth.log | grep 'Accepted password'
+
+cat /var/log/auth.log | grep 'Failed password'
+
+cat /var/log/auth.log | grep 'Accepted publickey'
+```
+
+<br>
+
+### Uninstall package
+``` bash
+# uninstall a package
+sudo apt-get purge {PACKAGE-NAME}
+    # remove : remove installation files (only)
+    # purge  : remove installation & configuration files
+
+# remove unnecessary files & dependencies
+sudo apt-get autoremove
 ```
 
 <br>
