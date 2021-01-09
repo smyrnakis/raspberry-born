@@ -25,15 +25,6 @@ cat /sys/firmware/devicetree/base/model
 
 <br>
 
-#### Message Of The Day (MOTD)
-``` bash
-ls -la /etc/update-motd.d
-
-sudo nano /etc/motd
-```
-
-<br>
-
 #### Successful / failed SSH logins
 ``` bash
 cat /var/log/auth.log | grep 'Accepted password'
