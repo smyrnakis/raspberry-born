@@ -1,5 +1,7 @@
 # Message Of The Day (MOTD)
 
+![motd](../img/motd.png)
+
 ### Files location
 ``` bash
 # static file

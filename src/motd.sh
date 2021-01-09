@@ -138,6 +138,7 @@ labelMemory="$borderBar  $(color $statsLabelColor "Memory........:") $labelMemor
 labelSD="$(extend "$(df -h ~ | awk 'NR==2 { printf "Total: %sB, Used: %sB, Free: %sB",$2,$3,$4; }')")"
 labelSD="$borderBar  $(color $statsLabelColor "Home space....:") $labelSD$borderBar"
 
+# https://stackoverflow.com/questions/8334266/how-to-make-special-characters-in-a-bash-script-for-conky?noredirect=1&lq=1
 CEL=$'\xc2\xb0'C
 labelTemp="$(extend "$(/opt/vc/bin/vcgencmd measure_temp | cut -c "6-9")${CEL}")"
 #labelTemp="$(extend "$(/opt/vc/bin/vcgencmd measure_temp | cut -c "6-9")ºC")"
