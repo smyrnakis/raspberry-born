@@ -67,6 +67,15 @@ cat /var/log/auth.log | grep 'Accepted publickey'
 
 <br>
 
+### Temperature
+``` bash
+/opt/vc/bin/vcgencmd measure_temp
+
+temp=34.4'C
+```
+
+<br>
+
 ### Uninstall package
 ``` bash
 # uninstall a package
