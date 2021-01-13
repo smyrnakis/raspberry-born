@@ -21,6 +21,11 @@ sudo apt list {PACKAGE-NAME}
 
 <br>
 
+### Network listening
+``` bash
+sudo netstat -putan | grep LISTEN
+```
+
 ### Process by name (find)
 ``` bash
 # find a process by name, e.g: "nano"
@@ -33,6 +38,10 @@ ps aux | grep -i nano
 ``` bash
 cat /sys/firmware/devicetree/base/model
 ```
+
+<br>
+
+### scp for file copies over ssh
 
 <br>
 

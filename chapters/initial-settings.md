@@ -39,7 +39,7 @@ visudo
 ```
 Replace user `pi` or add a new line if not there (replace *`{newusername}`* with the new username):
 ``` bash
-{newusername}   ALL=(ALL)   NOPASSWD:  ALL
+{newusername}   ALL=(ALL) ALL
 ```
 
 ### Add SSH keys
@@ -59,7 +59,7 @@ Use [PuTTY](https://www.putty.org/) *"PuTTY Key Generator"*
 # TO_BE_FIXED
 ```
 
-Import keys:
+Import **public** key(s):
 ``` bash
 cd
 mkdir .ssh
@@ -67,6 +67,11 @@ touch .ssh/authorized_keys
 echo "ssh-rsa....." >> .ssh/authorized_keys
 chmod 700 .ssh
 chmod 600 .ssh/authorized_keys
+```
+
+**Before closing** the connection, verify on a new terminal that the key authentication works fine!
+``` bash
+ssh -i ~/.ssh/{ROOT-KEY} root@192.168.178.31
 ```
 
 Logout `root` user:

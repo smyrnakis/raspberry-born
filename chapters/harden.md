@@ -32,6 +32,11 @@ Match Address 192.168.178.*,127.0.0.1
       PermitRootLogin prohibit-password
 ```
 
+Restart SSH service:
+``` bash
+sudo service ssh restart
+```
+
 <br>
 
 ### fail2ban
