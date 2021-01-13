@@ -39,9 +39,9 @@ sudo service ssh restart
 
 <br>
 
-### fail2ban :warning:
+### fail2ban
 
-> fail2ban may not work correctly with OpenVpn and/or Pi-hole or any combination of those!
+> :warning: fail2ban may not work correctly with OpenVpn and/or Pi-hole or any combination of those!
 
 *Article: https://pimylifeup.com/raspberry-pi-fail2ban/*
 
