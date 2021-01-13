@@ -1,9 +1,9 @@
-#!/bin/bash 
+#!/bin/bash
 
 # Based on script written by Eric Jodoin
 # https://gist.github.com/laurenorsini/10013430
 
-# Default Variable Declarations 
+# Default Variable Declarations
 DEFAULT="OVPN-defaults"
 FILEEXT=".ovpn"
 CRT=".crt"
@@ -44,7 +44,7 @@ if [ ! -f $TA ]; then
 fi
 echo "tls-auth Private Key found: $TA"
 
-# Ready to make a new .opvn file - Start by populating with the default file 
+# Ready to make a new .opvn file - Start by populating with the default file
 cat $DEFAULT > $NAME$FILEEXT
 
 # Now, append the CA Public Cert
