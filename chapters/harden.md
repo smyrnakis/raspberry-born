@@ -41,7 +41,7 @@ sudo service ssh restart
 
 ### fail2ban
 
-> :warning: fail2ban may not work correctly with OpenVpn and/or Pi-hole or any combination of those!
+> :warning:  fail2ban may not work correctly with OpenVpn and/or Pi-hole or any combination of those!
 
 *Article: https://pimylifeup.com/raspberry-pi-fail2ban/*
 
@@ -106,7 +106,7 @@ Instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapte
 
 ### Uncomplicated Firewall (UFW)
 
-> Although not mandatory, it's crucial to install in order to secure the Raspberry Pi **and** to ensure that the SSH port is not getting locked by any future operation that might affect *iptables*.
+> Although not mandatory, it's crucial to install *ufw* in order to secure the Raspberry Pi **and** to ensure that the SSH port is not getting locked by any future operation that might affect *iptables*.
 
 *Article: https://manpages.ubuntu.com/manpages/bionic/man8/ufw.8.html*
 
@@ -139,10 +139,10 @@ sudo ufw status
 
 ### Log files
 
-- `/var/log/auth.log` : authentication attempts
-- `/var/log/mail.log` : mail server
 - `/var/log/syslog` : main log for all services
 - `/var/log/messages` : all systems log
+- `/var/log/auth.log` : authentication attempts
+- `/var/log/mail.log` : mail server
 - `/var/log/pihole.log` : Pi-hole log
 - `/var/log/openvpn.log` : OpenVPN log
 - `/var/log/openvpn-status.log` : OpenVPN connections log

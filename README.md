@@ -44,7 +44,7 @@ Comments and suggestions are always welcome!
 
 [Two-factor authentication](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/2FA.md) - require 2FA for SSH log in with password
 
-[Uncomplicated FireWall - UFW](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/ufw.md) - install & configure UFW
+[Uncomplicated FireWall - UFW](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/harden.md#uncomplicated-firewall-ufw) - install & configure UFW
 
 [vim editor](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vim.md) - install & configure vim editor
 
