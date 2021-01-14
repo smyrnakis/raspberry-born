@@ -48,7 +48,7 @@ done
 [[ -z "$port" ]] && port="1194"
 echo
 # <<< PART TO BE ADDED STARTS HERE >>>
-echo "What will be the external OpenVpn port?"
+echo "What will be the external OpenVPN port?"
 read -p "External Port [1194]: " extport
 until [[ -z "$extport" || "$extport" =~ ^[0-9]+$ && "$extport" -le 65535 ]]; do
   echo "$extport: invalid port."
@@ -113,7 +113,7 @@ YdEIqUuyyOP7uWrat2DX9GgdT0Kj3jlN9K5W7edjcrsZCwenyO4KbXCeAvzhzffi
 7MA0BM0oNC9hkXL+nOmFg/+OTxIy7vKBg8P+OxtMb61zO7X8vC7CIAXFjvGDfRaD
 ssbzSibBsu/6iGtCOGEoXJf//////////wIBAg==
 -----END DH PARAMETERS-----' > /etc/openvpn/server/dh.pem
-# <<< PART TO BE EDITED FINISHES HERE >>>
+# <<< PART TO BE REPLACED FINISHES HERE >>>
 
 # <<< REPLACE ABOVE CODE WITH THE FOLLOWING>>>
 echo '-----BEGIN DH PARAMETERS-----
@@ -200,6 +200,7 @@ Public IPv4 address / hostname: {YOUR-NOIP-HOSTNAME}
 
 Rest of the installation options:
 ``` bash
+# Protocol
 Which protocol should OpenVPN use?
    1) UDP (recommended)
    2) TCP
@@ -292,7 +293,7 @@ Add a route for your network, e.g for 192.168.178.0/24, add:
 push "route 192.168.178.0 255.255.255.0"
 ```
 
-[Restart](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn.md#start-stop-restart-openvpn-service) OpenVPN server to apply the changes.
+[Restart](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn.md#startstoprestart-openvpn-service) OpenVPN server to apply the changes.
 
 #### Another way
 You could achieve the same result by instructing the Pi-hole to listen **only** on `eth0` interface and by adding the appropriate *route* & *DNS* in the `server.conf` file.
@@ -310,17 +311,9 @@ push "dhcp-option DNS 1.1.1.1"
 
 ### Start/Stop/Restart OpenVPN service
 ``` bash
-sudo systemctl start openvpn@server
+sudo service openvpn start
 
-# enable service to start at reboot (already enabled on installation)
-sudo systemctl enable openvpn@server
-```
-
-To restart the service use:
-``` bash
-sudo systemctl restart openvpn
-
-# OR
+sudo service openvpn stop
 
 sudo service openvpn restart
 ```
@@ -329,10 +322,6 @@ sudo service openvpn restart
 
 To check the service status use:
 ``` bash
-sudo systemctl status openvpn@server
-
-# OR
-
 sudo service openvpn status
 ```
 

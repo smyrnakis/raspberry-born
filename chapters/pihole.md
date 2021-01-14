@@ -44,7 +44,7 @@ tun0
 OpenDNS
 
 # block lists
-both
+all
 
 # IP protocols
 both
@@ -114,7 +114,7 @@ Assuming an *OpenVPN* server is running on your system, configure it to use Pi-h
 
 <br>
 
-## Add more blocked domains
+## Add more domains in the Blocklist
 ``` bash
 cd ~/Software
 git clone --depth=1 https://github.com/JavanXD/ya-pihole-list.git ya-pihole-list

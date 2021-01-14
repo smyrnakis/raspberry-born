@@ -40,15 +40,15 @@ shortBlink ()
 {
     if [[ "$1" == "green" ]]; then
         echo "1" > /sys/class/gpio/gpio20/value
-        sleep 0.1
+        sleep 0.07
         echo "0" > /sys/class/gpio/gpio20/value
-        sleep 0.15
+        sleep 0.1
     fi
     if [[ "$1" == "red" ]]; then
         echo "1" > /sys/class/gpio/gpio21/value
-        sleep 0.1
+        sleep 0.07
         echo "0" > /sys/class/gpio/gpio21/value
-        sleep 0.15
+        sleep 0.1
     fi
 }
 
