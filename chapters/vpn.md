@@ -275,6 +275,20 @@ Select an option:
 
 ## Extra
 
+### Configure OpenVPN to use Pi-hole
+
+> This step should be executed **AFTER** installing Pi-hole as described [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/pihole.md).
+
+Edit your `server.conf` file located in `/etc/openvpn/server/server.conf` and add the OpenVPN server address as the DNS.
+
+You can keep one more DNS server as a secondary fallback option.
+``` bash
+push "dhcp-option DNS 10.8.0.1"
+push "dhcp-option DNS 1.1.1.1"
+```
+
+[Restart](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn.md#start-stop-restart-openvpn-service) OpenVPN server to apply the changes.
+
 ### Start/Stop/Restart OpenVPN service
 ``` bash
 sudo systemctl start openvpn@server
