@@ -143,7 +143,7 @@ verb 3
 # <<< PART TO BE REMOVED FINISHES HERE >>>
 
 # <<< PART TO BE ADDED STARTS HERE >>>
-verb 4
+verb 3
 mute 10
 status /var/log/openvpn-status.log 20
 log-append /var/log/openvpn.log

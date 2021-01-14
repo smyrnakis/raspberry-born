@@ -181,18 +181,26 @@ sudo iptables-restore < /etc/pihole/rules.v4
 sudo ip6tables-restore < /etc/pihole/rules.v6
 ```
 
-### Unblock Spotify
-``` bash
-# whitelist the following domain in the admin panel
-spclient.wg.spotify.com
-```
-
-Whitelist using command line:
+### Spotify
 ``` bash
 sudo pihole -w spclient.wg.spotify.com
 ```
 
 More on Spotify: [https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60](https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60)
+
+### YouTube
+
+Whitelist the following:
+``` bash
+# to enable 'watched' history
+sudo pihole -w s.youtube.com
+```
+
+### Whitelist domains
+
+In case of issues, consider whitelisting the domains described here.
+
+[https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212/109](https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212/109)
 
 <br>
 
