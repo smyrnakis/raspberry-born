@@ -24,13 +24,13 @@ longBlink ()
 {
     if [[ "$1" == "green" ]]; then
         echo "1" > /sys/class/gpio/gpio20/value
-        sleep 0.75
+        sleep 0.5
         echo "0" > /sys/class/gpio/gpio20/value
         sleep 0.25
     fi
     if [[ "$1" == "red" ]]; then
         echo "1" > /sys/class/gpio/gpio21/value
-        sleep 0.75
+        sleep 0.5
         echo "0" > /sys/class/gpio/gpio21/value
         sleep 0.25
     fi
@@ -42,13 +42,13 @@ shortBlink ()
         echo "1" > /sys/class/gpio/gpio20/value
         sleep 0.1
         echo "0" > /sys/class/gpio/gpio20/value
-        sleep 0.1
+        sleep 0.15
     fi
     if [[ "$1" == "red" ]]; then
         echo "1" > /sys/class/gpio/gpio21/value
         sleep 0.1
         echo "0" > /sys/class/gpio/gpio21/value
-        sleep 0.1
+        sleep 0.15
     fi
 }
 
