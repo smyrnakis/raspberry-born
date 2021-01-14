@@ -2,7 +2,7 @@
 
 ![motd](../img/motd.png)
 
-### Files location
+## Files location
 ``` bash
 # static file
 /etc/motd
@@ -14,7 +14,7 @@
 /etc/update-motd.d/
 ```
 
-### Remove current MOTD
+## Remove current MOTD
 Remove and disable the default MOTD:
 ``` bash
 # disable MOTD
@@ -27,22 +27,52 @@ sudo rm -f /etc/motd
 sudo rm /etc/update-motd.d/10-uname
 ```
 
-### Create new files
+## Disable messages from *sshd*
 ``` bash
-# script updating motd file
-sudo touch /etc/update-motd.d/10-custom
-
-# change permissions
-sudo chown root:root /etc/update-motd.d/10-custom
-sudo chmod a+x /etc/update-motd.d/10-custom
+sudo nano /etc/ssh/sshd_config
 ```
 
-In the file `10-custom` add the code from the file [motd.sh](https://github.com/smyrnakis/raspberry-born/blob/main/src/motd.sh).
+Change the following accordingly:
+``` bash
+PrintMotd no
+PrintLastLog no
+```
 
-### Test
+## Create new file
+``` bash
+# script updating motd file
+cd ~
+mkdir Software
+mkdir Software/various
+sudo touch Software/various/motd.sh
+
+# change permissions
+sudo chown root:root /home/{YOUR-USERNAME}/Software/various/motd.sh
+sudo chmod +x /home/{YOUR-USERNAME}/Software/various/motd.sh
+```
+
+In the file `motd.sh` add the code from the file [motd.sh](https://github.com/smyrnakis/raspberry-born/blob/main/src/motd.sh).
+
+## Test
 You can test the script by running:
 ``` bash
-bash /etc/update-motd.d/10-custom
+bash Software/various/motd.sh
+```
+
+## Add new script
+Edit your `profile` file:
+
+``` bash
+# default profile
+nano ~/.profile
+
+# zsh profile
+nano ~/.zshrc
+```
+
+Add the full path to the new script at the end of the file:
+``` bash
+/home/{YOUR-USERNAME}/Software/various/motd.sh
 ```
 
 <br>

@@ -142,7 +142,7 @@ labelSD="$borderBar  $(color $statsLabelColor "Home space....:") $labelSD$border
 CEL=$'\xc2\xb0'C
 labelTemp="$(extend "$(/opt/vc/bin/vcgencmd measure_temp | cut -c "6-9")${CEL}")"
 #labelTemp="$(extend "$(/opt/vc/bin/vcgencmd measure_temp | cut -c "6-9")ºC")"
-labelTemp="$borderBar  $(color $statsLabelColor "Temperature...:") $labelTemp $borderBar"
+labelTemp="$borderBar  $(color $statsLabelColor "Temperature...:") $labelTemp$borderBar"
 
 if [ -f /run/systemd/shutdown/scheduled ]; then
   stats="$labelLogin\n$labelUptime\n$labelShutdown\n$labelMemory\n$labelSD\n$labelTemp"
