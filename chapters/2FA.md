@@ -24,7 +24,7 @@ token? This restricts you to one login about every 30s, but it increases
 your chances to notice or even prevent man-in-the-middle attacks (y/n) y
 
 By default, a new token [...] client and server.
-Do you want to do so? (y/n) y
+Do you want to do so? (y/n) n
 
 [...]
 Do you want to enable rate-limiting? (y/n) y

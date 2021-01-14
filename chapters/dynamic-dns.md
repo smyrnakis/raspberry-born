@@ -8,8 +8,6 @@
 
 *Article 3: https://pimylifeup.com/raspberry-pi-port-forwarding/*
 
-<br>
-
 ### Install & configure
 ``` bash
 sudo apt-get install ddclient
@@ -70,7 +68,9 @@ sudo ufw allow 80
 
 Troubleshooting:
 ``` bash
-ddclient -daemon=0 -debug -verbose -noquiet
+sudo tail /var/log/syslog | grep ddclient
+
+sudo ddclient -daemon=0 -debug -verbose -noquiet
 ```
 
 <br>
@@ -78,8 +78,6 @@ ddclient -daemon=0 -debug -verbose -noquiet
 ## Using *noip* client
 
 *Article: http://www.noip.com/support/knowledgebase/install-ip-duc-onto-raspberry-pi/*
-
-<br>
 
 ### Create a folder
 ``` bash

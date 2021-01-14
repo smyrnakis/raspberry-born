@@ -2,8 +2,6 @@
 
 *Article: https://www.seeedstudio.com/blog/2020/03/06/prettify-raspberry-pi-shell-with-oh-my-zsh/*
 
-<br>
-
 ### Install and make default
 
 ``` bash
@@ -25,7 +23,6 @@ nano ~/.zshrc
 ```
 
 Change the line to:
-
 ``` bash
 ZSH_THEME="agnoster"
 ```
@@ -40,6 +37,15 @@ git clone git://github.com/zsh-users/zsh-autosuggestions $ZSH_CUSTOM/plugins/zsh
 git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
 ```
 
+``` bash
+nano ~/.zshrc
+```
+
+Change the line to:
+``` bash
+plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
+```
+
 ### Extra
 
 Edit the file `~/.zshrc` accordingly:
@@ -52,6 +58,10 @@ PROMPT='%{%f%b%k%}[%D{%k:%M}] '$PROMPT
 PROMPT='%{$fg[yellow]%}[%D{%k:%M:%S}] '$PROMPT
 ```
 
+### Source .zshrc file
+``` bash
+source ~/.zshrc
+```
 
 <!--
 
