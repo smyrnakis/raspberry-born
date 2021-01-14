@@ -40,7 +40,9 @@ Comments and suggestions are always welcome!
 
 [oh-my-zsh terminal](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/zsh.md) - install & configure *oh-my-zsh* with *autosuggestions* and *syntax highlighting*
 
-[Pi-hole & DNSCrypt](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/pihole.md) - install & configure *Pi-hole* ad-blocker and DNSCrypt
+[OpenVPN server](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn.md) - install & configure an *OpenVPN* server that can work together with *Pi-hole*
+
+[Pi-hole](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/pihole.md) - install & configure *Pi-hole* ad-blocker (better install *Pi-hole* **after** installing *OpenVPN*)
 
 [Two-factor authentication](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/2FA.md) - require 2FA for SSH log in with password
 
