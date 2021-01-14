@@ -1,10 +1,6 @@
-# Pi-hole advertisement blocker
+# Pi-hole advertisement blocker & DNSCrypt
 
-> This guide assumes that *OpenVPN* is installed on the system. If you are not using OpenVPN, you can just follow the default settings during the installation.
-
-<br>
-
-*Article 1: https://docs.pi-hole.net/guides/vpn/installation/*
+*Article 1: https://www.itchy.nl/raspberry-pi-4-with-openvpn-pihole-dnscrypt/*
 
 *Article 2: https://docs.pi-hole.net/*
 
@@ -12,11 +8,57 @@
 
 <br>
 
-## Preparation
+## DNSCrypt
+
+### Install DNSCrypt
+``` bash
+# check and use the latest version: https://github.com/DNSCrypt/dnscrypt-proxy/releases/
+
+cd /opt
+sudo wget https://github.com/DNSCrypt/dnscrypt-proxy/releases/download/2.0.45/dnscrypt-proxy-linux_arm-2.0.45.tar.gz
+sudo tar xf dnscrypt-proxy-linux_arm-2.0.45.tar.gz
+sudo rm dnscrypt-proxy-linux_arm-2.0.45.tar.gz
+sudo mv linux-arm dnscrypt-proxy
+cd dnscrypt-proxy
+sudo cp example-dnscrypt-proxy.toml dnscrypt-proxy.toml
+```
+
+### Configure & enable DNSCrypt
+``` bash
+sudo nano /opt/dnscrypt-proxy/dnscrypt-proxy.toml
+```
+
+Change the following settings:
+``` bash
+listen_addresses = ['127.0.0.1:54', '[::1]:54']
+
+ipv6_servers = true # if you have IPv6 connectivity
+
+require_dnssec = true
+
+log_files_max_size = 30
+log_files_max_age = 15
+log_files_max_backups = 2
+```
+
+Enable the service:
+``` bash
+sudo ./dnscrypt-proxy -service install
+sudo ./dnscrypt-proxy -service start
+```
+
+Check the service status:
+``` bash
+sudo systemctl status dnscrypt-proxy
+```
+
+<br>
+
+## Pi-hole
 
 ### Configure UFW
 ``` bash
-sudo ufw allow 80/tcp
+sudo ufw allow 80/tcp                        # if not already open
 sudo ufw allow 53/tcp comment 'pihole'
 sudo ufw allow 53/udp comment 'pihole'
 sudo ufw allow 67/tcp comment 'pihole'
@@ -24,29 +66,21 @@ sudo ufw allow 67/udp comment 'pihole'
 sudo ufw allow 546:547/udp comment 'pihole'   # if using IPv6
 ```
 
-## Install Pi-hole
-
-Script needs to run with elevated privileges:
+### Install Pi-hole
 ``` bash
-sudo su
-```
-
-``` bash
-curl -sSL https://install.pi-hole.net | bash
+wget -O basic-install.sh https://install.pi-hole.net
+sudo bash basic-install.sh
 ```
 
 ### Configuration during installation
 ``` bash
-# interface
-tun0
-
 # upstream DNS provider
-OpenDNS
+cloudflare  # will be changed later
 
 # block lists
 both
 
-# IP protocols
+# protocols
 both
 
 # Do you want to use your current network settings as a static address?
@@ -76,45 +110,29 @@ on
 # KEEP A NOTE OF THE ADMIN PASSWORD
 ```
 
-### Set admin password
+### Further configuration
+```
+# Access admin panel at {RASPBERRY-PI-IP}/admin
+# e.g: 192.168.1.100/admin
+
+# {RASPBERRY-PI-IP}/admin/settings.php?tab=dns
+Uncheck any DNS server
+Custom 1 (IPv4) --> 127.0.0.1#54
+Custom 3 (IPv6) --> ::1#54
+
+# Interface listening behavior
+Listen on all interfaces
+
+# Advanced DNS settings
+Use DNSSEC
+```
 
 Choose your own password:
 ``` bash
 sudo pihole -a -p
 ```
 
-### Configure [DNSSEC](https://www.icann.org/resources/pages/dnssec-what-is-it-why-important-2019-03-05-en)
-```
-# Access admin panel at {RASPBERRY-PI-IP}/admin
-# e.g: 192.168.1.100/admin
-
-# Settings --> DNS --> Advanced DNS settings
-Check "Use DNSSEC"
-```
-
-### Configure interfaces
-
-##### Using the terminal
-``` bash
-pihole -a -i all
-```
-
-##### Using the admin panel
-```
-# Access admin panel at {RASPBERRY-PI-IP}/admin
-# e.g: 192.168.1.100/admin
-
-# Settings --> DNS --> Interface listening behavior
-Listen on all interfaces
-```
-
-## OpenVPN configuration
-
-Assuming an *OpenVPN* server is running on your system, configure it to use Pi-hole by following the steps [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn.md#configure-openvpn-to-use-pi-hole).
-
-<br>
-
-## Add more blocked domains
+### Add more blocked domains
 ``` bash
 cd ~/Software
 git clone --depth=1 https://github.com/JavanXD/ya-pihole-list.git ya-pihole-list
@@ -131,25 +149,30 @@ tmpFile="/home/{YOUR-USERNAME}/Software/ya-pihole-list/adlists.list.updater.tmp"
 apt-get update -y && apt-get upgrade -y
 ```
 
-Make the script executable and run it:
+Run the `adlists-updater.sh`
 ``` bash
 sudo chmod a+x adlists-updater.sh
-sudo bash adlists-updater.sh 1
+sudo sh adlists-updater.sh 1
 ```
 
-### Schedule automatic gravity update every day at 05:15
+### Schedule automatic gravity update every day at 02:15
 ``` bash
 sudo crontab -e
 ```
 
 Add the following line, replacing the path as above:
 ``` bash
-15 5 * * * sudo /home/{YOUR-USERNAME}/Software/ya-pihole-list/adlists-updater.sh 1 >/dev/null
+15 2 * * * sudo /home/tolis/Software/ya-pihole-list/adlists-updater.sh 1 >/dev/null
+```
+
+### Clean up
+``` bash
+rm ~/basic-install.sh
 ```
 
 <br>
 
-## Debugging
+### Debugging
 
 ``` bash
 # check the status
@@ -167,21 +190,9 @@ tail -f /var/log/pihole.log
 
 <br>
 
-## Extra
+### Extra
 
-### Back up *iptables* rules
-``` bash
-sudo iptables-save > /etc/pihole/rules.v4
-sudo ip6tables-save > /etc/pihole/rules.v6
-```
-
-You can restore the rules using:
-``` bash
-sudo iptables-restore < /etc/pihole/rules.v4
-sudo ip6tables-restore < /etc/pihole/rules.v6
-```
-
-### Unblock Spotify
+#### Spotify
 ``` bash
 # whitelist the following domain in the admin panel
 spclient.wg.spotify.com
@@ -189,14 +200,14 @@ spclient.wg.spotify.com
 
 Whitelist using command line:
 ``` bash
-sudo pihole -w spclient.wg.spotify.com
+pihole -w spclient.wg.spotify.com
 ```
 
 More on Spotify: [https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60](https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60)
 
 <br>
 
-### Hostnames
+#### Hostnames
 
 In order to show the hostnames in the Pi-hole console, you can update the `/etc/hosts` file and assign IP addresses to hostnames:
 
@@ -215,7 +226,7 @@ ff02::2         ip6-allrouters
 
 <br>
 
-### Router configuration
+#### Router configuration
 
 Do not forget to configure the router to use the Raspberry Pi's IP addresses (IPv4 & IPv6) for DNS.
 
@@ -226,19 +237,19 @@ ip a
 
 <br>
 
-### Command line usage
+#### Command line usage
 
 [https://discourse.pi-hole.net/t/the-pihole-command-with-examples/738](https://discourse.pi-hole.net/t/the-pihole-command-with-examples/738)
 
 <br>
 
-### Indicator LEDs
+#### Indicator LEDs
 
 You can add LEDs on the GPIO pins and let them blink with allowed or blocked DNS queries.
 
-Create a file in `~/Software/pihole/pihole-LEDs.sh`
+Create a file in `~/Software/Hardware/pihole/pihole-LEDs.sh`
 ``` bash
-mkdir ~/Software/pihole
+mkdir ~/Software/Hardware/pihole
 touch pihole-LEDs.sh
 ```
 
@@ -248,7 +259,7 @@ Add the following code into the file : [pihole-LEDs.sh](https://github.com/smyrn
 
 Make the script executable:
 ``` bash
-chmod a+x ~/Software/pihole/pihole-LEDs.sh
+chmod a+x ~/Software/Hardware/pihole/pihole-LEDs.sh
 ```
 
 Test the script by *uncommenting* the `echo` lines:
@@ -269,7 +280,7 @@ done
 ```
 
 ``` bash
-sudo bash ~/Software/pihole/pihole-LEDs.sh
+sudo bash ~/Software/Hardware/pihole/pihole-LEDs.sh
 ```
 
 If you can see the LEDs blinking and the messages `pihole block` or `pihole allow` on the console, the script and the hardware are working fine!
@@ -283,7 +294,7 @@ sudo crontab -e
 
 and add the line:
 ``` bash
-@reboot bash /home/{YOUR-USERNAME}/Software/pihole/pihole-LEDs.sh
+@reboot bash /home/{YOUR-USERNAME}/Software/Hardware/pihole/pihole-LEDs.sh
 ```
 
 <br>

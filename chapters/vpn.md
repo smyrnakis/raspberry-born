@@ -287,7 +287,26 @@ push "dhcp-option DNS 10.8.0.1"
 push "dhcp-option DNS 1.1.1.1"
 ```
 
+Add a route for your network, e.g for 192.168.178.0/24, add:
+``` bash
+push "route 192.168.178.0 255.255.255.0"
+```
+
 [Restart](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn.md#start-stop-restart-openvpn-service) OpenVPN server to apply the changes.
+
+#### Another way
+You could achieve the same result by instructing the Pi-hole to listen **only** on `eth0` interface and by adding the appropriate *route* & *DNS* in the `server.conf` file.
+
+``` bash
+pihole -a -i eth0
+```
+
+Assuming your Raspberry Pi has the IP `192.168.178.31` on a `255.255.255.0` network, the `server.conf` file should be updated:
+``` bash
+push "route 192.168.178.0 255.255.255.0"
+push "dhcp-option DNS 192.168.178.31"
+push "dhcp-option DNS 1.1.1.1"
+```
 
 ### Start/Stop/Restart OpenVPN service
 ``` bash
