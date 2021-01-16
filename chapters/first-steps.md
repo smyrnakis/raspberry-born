@@ -1,26 +1,26 @@
 # Prepare SD
 
-#### Download image
+### Download image
 
 - Download the latest image from the [official website](https://www.raspberrypi.org/software/)
 
-#### Write image
+### Write image
 
 - Download and install *balenaEtcher* from the [official website](https://www.balena.io/etcher/)
 - Write image to microSD
 
-#### Enable SSH
+### Enable SSH
 
 - Create an empty file named `ssh` in the root of `boot` drive
 
-##### Mac
+#### Mac
 
 ``` bash
 cd /Volumes/boot
 touch ssh
 ```
 
-##### Windows
+#### Windows
 
 ``` powershell
 # cd to the microSD, here D:\
@@ -34,6 +34,57 @@ OR
 rem cd to the microSD, here D:\
 D:
 echo $null >> filename
+```
+
+### Headless WiFi
+
+Create a file named `wpa_supplicant.conf` in the root of `boot` drive and add the following content, replacing accordingly:
+
+``` bash
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+country={COUNTRY-CODE}
+
+network={
+    ssid="{YOUR-SSID}"
+    psk="{YOUR-PASSWORD}"
+    key_mgmt=WPA2-PSK
+}
+```
+
+#### Mac
+
+``` bash
+cd /Volumes/boot
+
+touch wpa_supplicant.conf
+
+echo "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+country={COUNTRY-CODE}
+
+network={
+    ssid="{YOUR-SSID}"
+    psk="{YOUR-PASSWORD}"
+    key_mgmt=WPA2-PSK
+}" > wpa_supplicant.conf
+```
+
+#### Windows
+
+``` powershell
+# cd to the microSD, here D:\
+D:
+
+New-Item -ItemType file wpa_supplicant.conf -Content "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+country={COUNTRY-CODE}
+
+network={
+    ssid="{YOUR-SSID}"
+    psk="{YOUR-PASSWORD}"
+    key_mgmt=WPA2-PSK
+}"
 ```
 
 <br>
@@ -63,19 +114,19 @@ raspi-config
 sudo raspi-config
 ```
 
-##### System Options --> Hostname
+#### System Options --> Hostname
 
 Change the default hostname.
 
-##### System Options --> Boot / Auto Login
+#### System Options --> Boot / Auto Login
 
 Disable auto login. Choose `Console`.
 
-##### Localisation Options --> Timezone
+#### Localisation Options --> Timezone
 
 Select timezone.
 
-##### Advanced Options --> Expand Filesystem
+#### Advanced Options --> Expand Filesystem
 
 Go to `Advanced Options` and select `Expand Filesystem`.
 
