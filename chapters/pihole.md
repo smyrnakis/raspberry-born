@@ -167,6 +167,46 @@ tail -f /var/log/pihole.log
 
 <br>
 
+## Allow/Block lists
+
+For bulk addition, you can use:
+``` bash
+!#/bin/bash
+
+pihole -w $(tr ‘\n’ ’ ’ < input_filename)
+# https://discourse.pi-hole.net/t/add-comments-to-domains-on-the-cli/28556/9
+```
+
+### Spotify
+``` bash
+sudo pihole -w spclient.wg.spotify.com
+```
+
+More on Spotify: [https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60](https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60)
+
+### YouTube
+``` bash
+# to enable 'watched' history
+sudo pihole -w s.youtube.com
+```
+
+### WINDVision
+
+> Not clear if needed! Under investigation...
+
+``` bash
+# to enable WINDVision system updates
+sudo pihole -w redirector.gvt1.com
+```
+
+### Discourse thread
+
+In case of issues, consider whitelisting the domains described here.
+
+[https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212/109](https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212/109)
+
+<br>
+
 ## Extra
 
 ### Back up *iptables* rules
@@ -180,29 +220,6 @@ You can restore the rules using:
 sudo iptables-restore < /etc/pihole/rules.v4
 sudo ip6tables-restore < /etc/pihole/rules.v6
 ```
-
-### Spotify
-``` bash
-sudo pihole -w spclient.wg.spotify.com
-```
-
-More on Spotify: [https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60](https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60)
-
-### YouTube
-
-Whitelist the following:
-``` bash
-# to enable 'watched' history
-sudo pihole -w s.youtube.com
-```
-
-### Whitelist domains
-
-In case of issues, consider whitelisting the domains described here.
-
-[https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212/109](https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212/109)
-
-<br>
 
 ### Hostnames
 
