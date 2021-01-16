@@ -76,7 +76,7 @@ network={
 # cd to the microSD, here D:\
 D:
 
-New-Item -ItemType file wpa_supplicant.conf -Content "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+New-Item -ItemType file -Name wpa_supplicant.conf -Value "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 update_config=1
 country={COUNTRY-CODE}
 
