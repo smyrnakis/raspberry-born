@@ -85,6 +85,14 @@ ps ax | wc -l | tr -d " "
 ```
 
 ``` bash
+# Pi-hole status
+sudo pihole -c -j
+
+# example output
+{"domains_being_blocked":1195899,"dns_queries_today":65917,"ads_blocked_today":30020,"ads_percentage_today":45.542122}
+```
+
+``` bash
 # weather info
 curl -s "http://rss.accuweather.com/rss/liveweather_rss.asp?metric=1&locCode=EUR|UK|UK001|NAILSEA|" | sed -n '/Currently:/ s/.*: \(.*\): \([0-9]*\)\([CF]\).*/\2°\3, \1/p'
 ```
