@@ -341,12 +341,6 @@ sudo tail /var/log/openvpn-status.log
 grep VPN /var/log/syslog
 ```
 
-### Files' security
-``` bash
-chmod 751 -r /etc/openvpn/client
-chmod 751 -r /etc/openvpn/server
-```
-
 ### Restrictive networks
 
 `UDP` help avoid [TCP meltdown](https://openvpn.net/faq/what-is-tcp-meltdown/) issue but might be restricted on some public networks, like cafè WiFi.
@@ -356,6 +350,64 @@ Server's and client's profiles should be edited accordingly:
 proto tcp
 remote {YOUR-EXTERNAL-IP} 443
 socket-flags TCP_NODELAY          #reduce latency
+```
+
+### Indicator LED
+
+You can add a LED on the GPIO pin and let it blink according to the number of connected clients.
+
+Create a file in `~/Software/OpenVPN/OpenVPN-LED.sh`
+``` bash
+mkdir ~/Software/OpenVPN
+cd ~/Software/OpenVPN
+
+touch OpenVPN-LED.sh
+```
+
+Add the following code into the file : [OpenVPN-LED.sh](https://github.com/smyrnakis/raspberry-born/blob/main/src/OpenVPN-LED.sh)
+
+*The code above uses GPIO16 for the YELLOW LED.*
+
+Make the script executable:
+``` bash
+chmod a+x ~/Software/OpenVPN/OpenVPN-LED.sh
+```
+
+Test the script by *uncommenting* the `echo` line:
+``` bash
+[...]
+
+if [[ ! -z "$CONNCLIENTS" ]]; then
+    echo "$CONNCLIENTS" | while read LINE; do
+        #echo "OpenVPN-LED : blink!"
+        longBlink
+        sleep 0.5
+    done
+fi
+```
+
+``` bash
+sudo bash ~/Software/OpenVPN/OpenVPN-LED.sh
+```
+
+Connect on the OpenVPN server. If you can see the LED blinking and the message `OpenVPN-LED : blink!` on the console the script and the hardware are working fine!
+
+Comment out the two `echo` command again.
+
+Set the script to run on Raspberry's boot:
+``` bash
+sudo crontab -e
+```
+
+and add the line:
+``` bash
+@reboot bash /home/{YOUR-USERNAME}/Software/OpenVPN/OpenVPN-LED.sh
+```
+
+### Files' security
+``` bash
+chmod 710 -r /etc/openvpn/client
+chmod 710 -r /etc/openvpn/server
 ```
 
 ### A note on security
