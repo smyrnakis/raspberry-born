@@ -255,6 +255,12 @@ You can copy this file to your home directory and distribute it to the users:
 cp /root/MyMobile.ovpn /home/{YOUR-USERNAME}/MyMobile.ovpn
 ```
 
+For long term storage, you can create a directory under `/etc/openvpn/client/` and name it after the current date.
+``` bash
+mkdir /etc/openvpn/client/20210118
+mv /root/*.ovpn /etc/openvpn/client/20210118/
+```
+
 <br>
 
 *At this point, you can exit the `sudo su` mode by typing `exit`.*

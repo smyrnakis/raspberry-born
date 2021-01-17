@@ -264,6 +264,8 @@ You can add LEDs on the GPIO pins and let them blink with allowed or blocked DNS
 Create a file in `~/Software/pihole/pihole-LEDs.sh`
 ``` bash
 mkdir ~/Software/pihole
+cd ~/Software/pihole
+
 touch pihole-LEDs.sh
 ```
 
