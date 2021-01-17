@@ -78,6 +78,7 @@ D:
 
 New-Item -ItemType file -Name wpa_supplicant.conf
 
+# replace {COUNTRY-CODE} , {YOUR-SSID} , {YOUR-PASSWORD}
 echo "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 update_config=1
 country={COUNTRY-CODE}
