@@ -1,7 +1,3 @@
-## UNDER DEVELOPMENT !
-
-<br>
-
 # Raspberry-born
 
 Steps to follow for a fresh *raspbian* installation. Includes instructions for configuring:
@@ -11,10 +7,17 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 - two-factor authentication
 - pi-hole
 - OpenVPN server
+- etc
 
-This guide will be updated according to my personal needs ;)
+<br>
 
-Comments and suggestions are always welcome!
+> **DISCLAIMER:** not all the code in this repository is developed by me. All original articles and/or Git repos are referred.
+>
+> The code in this repository is provided *"as is"*. I take no responsibility for mistakes, S/W and/or H/W damage, security breaches whatsoever.
+>
+> This repository will be updated according to my personal interests and needs.
+> 
+> Comments and recommendations are always welcome! :smiley:
 
 <br>
 
