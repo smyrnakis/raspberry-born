@@ -12,12 +12,70 @@ sudo locale-gen en_US.UTF-8
 sudo dpkg-reconfigure locales
 ```
 
+Edit the `/etc/ssh/sshd_config` file and commend out the line `SendEnv LANG LC_*` :
+``` bash
+#   SendEnv LANG LC_*
+```
+
 <br>
 
 ### Installed package version
 ``` bash
 sudo apt list {PACKAGE-NAME}
 ```
+
+<br>
+
+### Mount + auto mount at boot
+
+#### One-time mount
+Create a directory where you will mount the *network share*:
+``` bash
+sudo mkdir /mnt/NAS
+```
+
+Mount the share:
+``` bash
+# For the examples bellow:
+# server's IP       :    192.168.1.50
+# network share     :    Raspberry
+# server's username :    raspi
+
+mount -t cifs -o user=raspi,rw,file_mode=0777,dir_mode=0777 //192.168.1.50/Raspberry /mnt/NAS
+Password for raspi@//192.168.1.50/Raspberry:  ******
+```
+
+#### Auto-mount at boot
+*Mounting on the `mnt/NAS` directory created in the previous step.*
+
+Create the `credentials` file that will store your SAMBA *username* & *password* in `/etc/samba/`:
+``` bash
+sudo touch /etc/samba/credentials
+```
+
+Add **only** two lines with the exact text (replacing `{YOUR-USERNAME}` and `{YOUR-PASSWORD}`). The credentials are those of the *network server*, not your Raspberry Pi login.
+``` bash
+username={YOUR-USERNAME}
+password={YOUR-PASSWORD}
+```
+
+Make `root` the owner and give only *read* permissions:
+``` bash
+chown root:root /etc/samba/credentials
+sudo chmod 400 /etc/samba/credentials
+```
+
+Edit the `etc/fstab` file
+``` bash
+sudo nano etc/fstab
+```
+
+and add the following line (replacing accordingly):
+``` bash
+//192.168.1.50/Raspberry /mnt/NAS cifs _netdev,credentials=/etc/samba/credentials,rw,file_mode=0777,dir_mode=0777,comment=systemd.automount,x-systemd.mount-timeout=30  0  0
+```
+
+The `_netdev` means that the mount is treated as a *Network Drive* thus mounting will execute after network link is up.
 
 <br>
 
