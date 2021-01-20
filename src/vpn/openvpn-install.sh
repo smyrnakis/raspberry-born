@@ -284,6 +284,7 @@ cert server.crt
 key server.key
 dh dh.pem
 auth SHA512
+tls-version-min 1.2
 tls-crypt tc.key
 topology subnet
 server 10.8.0.0 255.255.255.0" > /etc/openvpn/server/server.conf
@@ -433,6 +434,7 @@ resolv-retry infinite
 nobind
 persist-key
 persist-tun
+tls-version-min 1.2
 remote-cert-tls server
 auth SHA512
 cipher AES-256-CBC

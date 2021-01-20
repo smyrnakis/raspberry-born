@@ -6,6 +6,8 @@
 
 *Article 3: https://blog.securityevaluators.com/hardening-openvpn-in-2020-1672c3c4135a*
 
+*Article 4: https://blog.g3rt.nl/openvpn-security-tips.html*
+
 <br>
 
 ## Preparation
@@ -132,6 +134,35 @@ zAqCkc3OyX3Pjsm1Wn+IpGtNtahR9EGC4caKAH5eZV9q//////////8CAQI=
 ```
 
 *More info: [IETF RFC 7919](https://tools.ietf.org/html/rfc7919)*
+
+#### TLS version
+To strengthen against downgrade attack on the TLS protocol level, add in a new line the `tls-version-min 1.2` on both *server* and *client* configuration (approx lines: `287` & `437` respectively).
+
+``` bash
+# line 282
+ca ca.crt
+cert server.crt
+key server.key
+dh dh.pem
+auth SHA512
+# <<< PART TO BE ADDED STARTS HERE >>>
+tls-version-min 1.2
+# <<< PART TO BE ADDED FINISHES HERE >>>
+tls-crypt tc.key
+topology subnet
+
+# [...]
+
+# line 434
+nobind
+persist-key
+persist-tun
+# <<< PART TO BE ADDED STARTS HERE >>>
+tls-version-min 1.2
+# <<< PART TO BE ADDED FINISHES HERE >>>
+remote-cert-tls server
+auth SHA512
+```
 
 #### Server logging
 Change the logging directives of the server in line `338`:
