@@ -41,6 +41,8 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 
 [Message Of The Day - MOTD](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/motd.md) - Customise the MOTD
 
+[Network mapper - Nmap](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/nmap.md) - Nmap tool usage
+
 [oh-my-zsh terminal](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/zsh.md) - install & configure *oh-my-zsh* with *autosuggestions* and *syntax highlighting*
 
 [OpenVPN server](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn.md) - install & configure an *OpenVPN* server that can work together with *Pi-hole*
