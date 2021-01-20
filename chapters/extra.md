@@ -130,6 +130,8 @@ cat /var/log/auth.log | grep 'Accepted password'
 cat /var/log/auth.log | grep 'Failed password'
 
 cat /var/log/auth.log | grep 'Accepted publickey'
+
+cat /var/log/auth.log | grep 'Failed publickey'
 ```
 
 <br>
@@ -152,6 +154,23 @@ sudo apt-get purge {PACKAGE-NAME}
 
 # remove unnecessary files & dependencies
 sudo apt-get autoremove
+```
+
+<br>
+
+### Uptime
+``` bash
+# current time / how much time system is up / connected users / system load
+uptime
+>19:53:34 up 1 day, 18:46,  1 user,  load average: 0.15, 0.13, 0.11
+
+# how much time system is up
+uptime -p
+> up 1 day, 18 hours, 44 minutes
+
+# time system started
+uptime -s
+> 2021-01-19 01:06:57
 ```
 
 <br>
