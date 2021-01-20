@@ -322,7 +322,7 @@ Edit your `server.conf` file located in `/etc/openvpn/server/server.conf` and ad
 You can keep one more DNS server as a secondary fallback option.
 ``` bash
 push "dhcp-option DNS 10.8.0.1"
-push "dhcp-option DNS 1.1.1.1"
+push "dhcp-option DNS 9.9.9.9"
 ```
 
 Add a route for your network, e.g for 192.168.178.0/24, add:
@@ -343,7 +343,7 @@ Assuming your Raspberry Pi has the IP `192.168.178.31` on a `255.255.255.0` netw
 ``` bash
 push "route 192.168.178.0 255.255.255.0"
 push "dhcp-option DNS 192.168.178.31"
-push "dhcp-option DNS 1.1.1.1"
+push "dhcp-option DNS 9.9.9.9"
 ```
 
 ### Start/Stop/Restart OpenVPN service
