@@ -105,7 +105,7 @@ Instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapte
 
 <br>
 
-### Uncomplicated Firewall (UFW)
+### Uncomplicated Firewall (UFW)  -  iptables
 
 > Although not mandatory, it's crucial to install *ufw* in order to secure the Raspberry Pi **and** to ensure that the SSH port is not getting locked by any future operation that might affect *iptables*.
 
@@ -114,6 +114,8 @@ Instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapte
 *Article (iptables): https://www.digitalocean.com/community/tutorials/how-to-list-and-delete-iptables-firewall-rules*
 
 <br>
+
+#### UFW
 
 Install *ufw* :
 ``` bash
@@ -134,6 +136,60 @@ sudo ufw enable
 Check the status of the service:
 ``` bash
 sudo ufw status
+```
+
+To disable the service, use:
+``` bash
+sudo ufw disable
+```
+
+#### iptables
+
+*For the `iptables` commands, it's better if you enter elevated mode by using:*
+``` bash
+sudo su
+```
+
+<!--
+
+Enable the firewall:
+``` bash
+/etc/init.d/iptables start
+```
+
+Enable start of `iptables` on boot:
+``` bash
+chkconfig iptables on
+```
+
+Stop the firewall:
+``` bash
+/etc/init.d/iptables save
+/etc/init.d/iptables stop
+```
+
+Disable start of `iptables` on boot:
+``` bash
+chkconfig iptables off
+```
+
+-->
+
+Save the rules to a file:
+``` bash
+mkdir /etc/iptables
+
+# IPv4 rules
+iptables-save > /etc/iptables/rules.v4
+
+# Ipv6 rules
+ip6tables-save > /etc/iptables/rules.v6
+```
+
+Restore rules
+``` bash
+iptables-restore < /etc/iptables/rules.v4
+ip6tables-save > /etc/iptables/rules.v6
 ```
 
 <br>
