@@ -28,6 +28,10 @@ sudo apt list {PACKAGE-NAME}
 
 ### Mount + auto mount at boot
 
+> The example bellow is for mounting a **network share** folder.
+>
+> To identify and mount a connected USB drive or microSD card, use the command `sudo fdisk -l`.
+
 #### One-time mount
 Create a directory where you will mount the *network share*:
 ``` bash

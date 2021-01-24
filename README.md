@@ -37,6 +37,8 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 
 [Auto updates](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/auto-updates.md) - configure daily automatic updates
 
+[Backup the Raspberry pi](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/backup.md) - manual or automatic backup of microSD card
+
 [Dynamic DNS (ddclient & noip DUC)](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/dynamic-dns.md) - install & configure *ddclient* or *noip DUC*
 
 [Message Of The Day - MOTD](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/motd.md) - Customise the MOTD
