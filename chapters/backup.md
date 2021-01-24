@@ -38,9 +38,7 @@ sudo dd bs=4M if=/Users/{USERNAME}/RaspiBackup.img of=/dev/disk2
 
 <br>
 
-## Automatic backup on an external USB drive :warning:
-
-> **ATTENTION:** automatic backup will **erase** all contents on the external USB drive!
+## Automatic backup on an external USB drive
 
 *Guide using `rpi-clone`, available [here](https://github.com/billw2/rpi-clone).*
 
@@ -127,7 +125,7 @@ Run setup script       : no.
 Verbose mode           : no.
 -----------------------:
 
-Ok to proceed with the clone?  (yes/no):
+Ok to proceed with the clone?  (yes/no): yes
 ```
 
 <br>
