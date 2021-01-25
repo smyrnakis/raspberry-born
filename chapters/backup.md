@@ -128,13 +128,24 @@ Verbose mode           : no.
 Ok to proceed with the clone?  (yes/no): yes
 ```
 
+To execute the script in *quite mode*, use the `-q` option:
+``` bash
+# quietly clone microSD to external device 'sda'
+sudo rpi-clone sda -q
+```
+
 <br>
 
-<!--
 
 ## Automatic backup on a *Network Share*
 
+> :warning: the following part has **not** been tested :warning:
+
 > The following guide will describe how to automatically backup your Raspberry Pi's SD card on a *Network Attached Storage* (NAS) in the same network.
+
+*Guide using `bkup_rpimage`, available [here](https://github.com/lzkelley/bkup_rpimage).*
+
+<br>
 
 ### Prepare the NAS
 
@@ -214,6 +225,64 @@ Edit the `etc/fstab` file and add the following line (replacing accordingly):
 //192.168.1.50/Raspberry /mnt/NAS cifs _netdev,credentials=/etc/samba/credentials,rw,file_mode=0777,dir_mode=0777,comment=systemd.automount,x-systemd.mount-timeout=30  0  0
 ```
 
-### Backup Raspberry card
+### Prepare `bkup_rpimage`
+``` bash
+cd ~/Software
+git clone https://github.com/lzkelley/bkup_rpimage
 
--->
+cd bkup_rpimage
+sudo chmod +x bkup_rpimage.sh
+```
+
+> This script needs `pv` program. If not installed, install it using:
+> ``` bash
+> sudo apt-get install pv
+> ```
+> More info: [https://linux.die.net/man/1/pv](https://linux.die.net/man/1/pv)
+
+### Using `bkup_rpimage`
+``` bash
+sudo bash bkup_rpimage.sh start -c /tmp/raspi-backup.img
+```
+
+### Automate backup procedure
+Create a file `backup_handler.sh` in the same location with `bkup_rpimage` files:
+
+``` bash
+cd ~/Software/bkup_rpimage
+touch backup_handler.sh
+```
+
+Edit the file ( `nano backup_handler.sh` ) and add the following content:
+``` bash
+#!/bin/bash
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games
+
+# c : create img file if not exist
+# z : compress image
+# d : delete image after compression
+# l : create log file named {IMAGE-NAME}-YYYYmmddHHMMSS.log
+
+/bin/bash bkup_rpimage.sh start -czdl /mnt/NAS/$(date +%Y-%m-%d)_$(uname -n).img
+```
+
+Note that you need to update the path according to what you have set in the previous steps.
+
+Test that automatic script works and that the compressed image file is created in the Network Share:
+``` bash
+sudo bash backup_handler.sh
+```
+
+Add the above script at `crontab` to execute automatically:
+``` bash
+sudo crontab -e
+```
+
+Add the following (replacing `{USERNAME}` with your username) in order to have the script executing weekly at 4:30 am :
+``` bash
+30 4 * * 1 /home/{USERNAME}/Software/bkup_rpimage/backup_handler.sh
+```
+
+<br>
