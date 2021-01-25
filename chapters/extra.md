@@ -3,6 +3,32 @@
 
 <br>
 
+### crontab
+To configure a script to run recursively, add it in crontab.
+Useful info available [HERE](https://crontab.guru/) and [HERE](https://man7.org/linux/man-pages/man5/crontab.5.html).
+
+Open crontab:
+``` bash
+sudo crontab -e
+```
+
+Add the following line to have the script executing **weekly** at **12:00** noon:
+``` bash
+0 12 * * 1 /path/to/script.sh
+```
+
+To execute a script on system's reboot, use:
+``` bash
+@reboot /path/to/script.sh
+```
+
+To review currently running cronjobs:
+``` bash
+ps fauxww | grep -A 1 '[C]RON'
+```
+
+<br>
+
 ### Fix "`perl: warning: Falling back to a fallback locale ("en_GB.UTF-8").`"
 ``` bash
 export LANGUAGE=en_US.UTF-8
