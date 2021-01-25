@@ -97,6 +97,10 @@ Remove a banned IP using (replace *{line}* with line's number):
 sudo iptables -D f2b-sshd {line}
 ```
 
+#### fail2ban for OpenVPN
+
+Info here: [https://www.fail2ban.org/wiki/index.php/HOWTO_fail2ban_with_OpenVPN](https://www.fail2ban.org/wiki/index.php/HOWTO_fail2ban_with_OpenVPN)
+
 <br>
 
 ### Enable 2-factor authentication
