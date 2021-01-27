@@ -44,7 +44,8 @@ account account2
 
 > It is recommended that you create an **Application password** in your Gmail account's *"Security Settings"* and use this password in the `msmtprc` file.
 > 
-> It is possible to avoid typing *clear text* password in the configuration file. More info here: [https://www.mankier.com/1/msmtp#Examples](https://www.mankier.com/1/msmtp#Examples) .
+> It is possible to avoid typing *clear text* password in the configuration file.
+> More info here: [https://www.mankier.com/1/msmtp#Examples](https://www.mankier.com/1/msmtp#Examples)
 
 
 ## Test email
