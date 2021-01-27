@@ -401,7 +401,7 @@ cd ~/Software/OpenVPN
 touch OpenVPN-LED.sh
 ```
 
-Add the following code into the file : [OpenVPN-LED.sh](https://github.com/smyrnakis/raspberry-born/blob/main/src/OpenVPN-LED.sh)
+Add the following code into the file : [OpenVPN-LED.sh](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/OpenVPN-LED.sh)
 
 *The code above uses GPIO16 for the YELLOW LED.*
 
