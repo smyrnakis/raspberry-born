@@ -115,7 +115,9 @@ Instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapte
 
 *Article: https://manpages.ubuntu.com/manpages/bionic/man8/ufw.8.html*
 
-*Article (iptables): https://www.digitalocean.com/community/tutorials/how-to-list-and-delete-iptables-firewall-rules*
+*Article (iptables #1): https://www.digitalocean.com/community/tutorials/how-to-list-and-delete-iptables-firewall-rules*
+
+*Article (iptables #2): https://www.howtogeek.com/177621/the-beginners-guide-to-iptables-the-linux-firewall*
 
 <br>
 
