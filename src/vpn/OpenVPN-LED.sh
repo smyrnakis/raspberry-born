@@ -6,7 +6,7 @@
 # On script's startup, the LED blinks for 3 times.
 # Do not forget to use a resistor on the LED!
 
-echo "Starting script 'OpenVPN-LEDs.sh' to monitor OpenVPN log ..."
+echo "Starting script 'OpenVPN-LEDs.sh' to monitor openvpn-status.log file ..."
 
 # configure pin as output
 # YELLOW LED

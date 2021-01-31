@@ -372,8 +372,8 @@ ip a show tun0
 
 Log files:
 ``` bash
-sudo tail /var/log/openvpn.log
-sudo tail /var/log/openvpn-status.log
+sudo tail -f /var/log/openvpn.log
+sudo tail -f /var/log/openvpn-status.log
 
 grep VPN /var/log/syslog
 ```
@@ -389,9 +389,98 @@ remote {YOUR-EXTERNAL-IP} 443
 socket-flags TCP_NODELAY          #reduce latency
 ```
 
+### Notification email
+
+<!--
+
+> :warning: The method described in the HTML comment section did **NOT** work. The script `OpenVPN-email.sh` should not be used for this method! :warning:
+
+The following steps will add a script which will be called by **OpenVPN server** on client's *connection* or *disconnection*.
+The script will email us on client's connection / disconnection.
+
+Create a file in `~/Software/OpenVPN/OpenVPN-email.sh`
+``` bash
+mkdir ~/Software/OpenVPN
+cd ~/Software/OpenVPN
+
+touch OpenVPN-email.sh
+sudo chown root:root OpenVPN-email.sh
+sudo chmod 744 OpenVPN-email.sh
+```
+
+Add the following code into the file : [OpenVPN-LED.sh](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/OpenVPN-email.sh)
+``` bash
+sudo nano OpenVPN-email.sh
+```
+
+Add an *unprivileged* user `openvpn`:
+``` bash
+# adding user 'openvpn'
+useradd -s /usr/sbin/nologin -r -M -d /dev/null openvpn
+```
+
+Verify that the new user was created:
+``` bash
+less /etc/passwd
+```
+
+Give user `openvpn` the right to execute the above script by editing the `sudoers` file:
+``` bash
+sudo visudo
+```
+Add the following in the `sudoers` file, replacing `{YOUR-USERNAME}`:
+``` bash
+openvpn ALL=NOPASSWD: /home/{YOUR-USERNAME}/Software/OpenVPN/OpenVPN-email.sh
+```
+
+Edit the `/etc/openvpn/server/server.conf` file according to the following:
+``` bash
+# change user / group that OpenVPN runs as
+user openvpn
+group nogroup
+
+# add script execution using sudo
+script-security 2
+client-connect "/usr/bin/sudo /usr/bin/bash /home/{YOUR-USERNAME}/Software/OpenVPN/OpenVPN-email.sh"
+client-disconnect "/usr/bin/sudo /usr/bin/bash /home/{YOUR-USERNAME}/Software/OpenVPN/OpenVPN-email.sh"
+```
+
+-->
+
+The following steps will be checking the `/var/log/openvpn.log` log file for client's *connection* or *disconnection* and email us accordingly.
+
+> The script is using the `msmtp` tool. Instructions on how to configure `msmtp` are available [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/email.md).
+
+Create a file in `~/Software/OpenVPN/OpenVPN-email.sh`
+``` bash
+mkdir ~/Software/OpenVPN
+cd ~/Software/OpenVPN
+
+touch OpenVPN-email.sh
+sudo chown root:root OpenVPN-email.sh
+sudo chmod 744 OpenVPN-email.sh
+```
+
+Add the following code into the file : [OpenVPN-email.sh](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/OpenVPN-email.sh)
+``` bash
+sudo nano OpenVPN-email.sh
+```
+
+Set the script to run on Raspberry's boot:
+``` bash
+sudo crontab -e
+```
+
+and add the line:
+``` bash
+@reboot bash /home/{YOUR-USERNAME}/Software/OpenVPN/OpenVPN-email.sh
+```
+
+The script will email you the names and source IPs of the currently connected client(s) (everytime a new client is connected or disconnected) and with the message *'All clients DISCONNECTED'* when there is no connected client on the OpenVPN server.
+
 ### Indicator LED
 
-You can add a LED on the GPIO pin and let it blink according to the number of connected clients.
+You can add a LED on the GPIO pin and let it blink according to the number of connected clients. Do not forget to use an appropriate resistor on the LED!
 
 Create a file in `~/Software/OpenVPN/OpenVPN-LED.sh`
 ``` bash
