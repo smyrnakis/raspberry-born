@@ -447,7 +447,7 @@ client-disconnect "/usr/bin/sudo /usr/bin/bash /home/{YOUR-USERNAME}/Software/Op
 
 -->
 
-The following steps will be checking the `/var/log/openvpn.log` log file for client's *connection* or *disconnection* and email us accordingly.
+The following steps will be checking the `/var/log/openvpn-status.log` log file for client's *connection* or *disconnection* and email us accordingly.
 
 > The script is using the `msmtp` tool. Instructions on how to configure `msmtp` are available [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/email.md).
 
