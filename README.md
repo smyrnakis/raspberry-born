@@ -64,3 +64,9 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 ## Extra
 
 [Various commands](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/extra.md) - useful commands
+
+<br>
+
+![open-raspi](img/openRaspi.jpeg)
+
+<br>
