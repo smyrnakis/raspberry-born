@@ -122,6 +122,28 @@ ps aux | grep -i nano
 
 <br>
 
+### Python
+``` bash
+# Python version
+python --version
+> Python 2.7.13
+
+# Use Python 3 by default
+# edit .bashrc file
+nano ~/.bashrc
+
+# add the following alias
+alias python='/usr/bin/python3'
+
+# source the .bashrc
+source ~/.bashrc
+
+# if using zrc:
+source ~/.zshrc
+```
+
+<br>
+
 ### Raspberry Pi version
 ``` bash
 cat /sys/firmware/devicetree/base/model
@@ -129,9 +151,11 @@ cat /sys/firmware/devicetree/base/model
 
 <br>
 
+<!--
 ### scp for file copies over ssh
 
 <br>
+-->
 
 ### Shutdown / Reboot schedule
 Check if/when a *shutdown* or a *reboot* is scheduled:
@@ -190,7 +214,7 @@ sudo apt-get autoremove
 
 ### Uptime
 ``` bash
-# current time / how much time system is up / connected users / system load
+# current time / how much time system is up / connected users / system load [1-5-15]
 uptime
 >19:53:34 up 1 day, 18:46,  1 user,  load average: 0.15, 0.13, 0.11
 
@@ -201,6 +225,9 @@ uptime -p
 # time system started
 uptime -s
 > 2021-01-19 01:06:57
+
+# CPU average load (1 minute)
+uptime | grep 'load average: ' | awk '{print $10}' | sed 's/,//g'
 ```
 
 <br>
