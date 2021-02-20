@@ -53,6 +53,8 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 
 [Pi-hole](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/pihole.md) - install & configure *Pi-hole* ad-blocker (better install *Pi-hole* **after** installing *OpenVPN*)
 
+[Thingspeak monitoring system](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/thingSpeak.md) - monitor Raspi's CPU temp & load averages *and* ambient temperature & humidity (using *DHT11* sensor & [*Thingspeak*](https://thingspeak.com/) platform)
+
 [Two-factor authentication](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/2FA.md) - require 2FA for SSH log in with password
 
 [Uncomplicated FireWall - UFW](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/harden.md#uncomplicated-firewall-ufw) - install & configure UFW
