@@ -15,7 +15,7 @@ The data will include ambient *temperature* and *humidity* (from a **DHT11** sen
 Register a free account on [Thingspeak website](https://thingspeak.com/) and create a channel. Name the fields and save the changes.
 
 <p float="center">
-  <img src="../img/ts1.png" width="550" />
+  <img src="../img/ts1.png" width="600" />
 </p>
 
 <!-- ![thingspeak 1](../img/ts1.png) -->
@@ -34,8 +34,8 @@ You will need a *DHT11* sensor and a *10KΩ resistor*.
 <br>
 
 <p float="left">
-  <img src="../img/DHT11-pinout.jpg" width="450" />
-  <img src="../img/raspi-pinout.png" height="928" />
+  <img src="../img/DHT11-pinout.jpg" width="419" />
+  <img src="../img/raspi-pinout.png" width="530" />
 </p>
 
 <!--
@@ -46,12 +46,14 @@ You will need a *DHT11* sensor and a *10KΩ resistor*.
 
 -->
 
+<br>
+
 I am using a custom made PCB board to hold the sensor, an 1-meter USB cable and a USB port connected on Raspberry Pi's GPIO23, 3.3V & GND pins.
 
 <p float="left">
-  <img src="../img/DHT11_1.jpg" width="300" />
-  <img src="../img/DHT11_2.jpg" width="300" />
-  <img src="../img/DHT11_3.jpg" width="300" />
+  <img src="../img/DHT11_1.jpg" width="366" />
+  <img src="../img/DHT11_2.jpg" width="279" />
+  <img src="../img/DHT11_3.jpg" width="260" />
 </p>
 
 <!--
@@ -147,8 +149,8 @@ and add the line:
 <br>
 
 <p float="left">
-  <img src="../img/ts2.png" height="366" />
-  <img src="../img/DHT11_4.jpg" width="450" />
+  <img src="../img/ts2.png" width="520" />
+  <img src="../img/DHT11_4.jpg" width="403" />
 </p>
 
 <!--
