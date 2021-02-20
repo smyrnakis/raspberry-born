@@ -144,7 +144,7 @@ labelTemp="$(extend "$(/opt/vc/bin/vcgencmd measure_temp | cut -c "6-9")${CEL}")
 #labelTemp="$(extend "$(/opt/vc/bin/vcgencmd measure_temp | cut -c "6-9")ºC")"
 labelTemp="$borderBar  $(color $statsLabelColor "CPU temp......:") $labelTemp$borderBar"
 
-# THIS PART SHOULD BE USED ONLY IF DHT11 SENSOR IS AVAILABLE AS DISCRIBED HERE:
+# THIS PART SHOULD BE USED ONLY IF DHT11 SENSOR IS AVAILABLE AS DESCRIBED HERE:
 # https://github.com/smyrnakis/raspberry-born/blob/main/chapters/thingSpeak.md
 ambientTemp="$(cat /home/$me/Software/thingspeak/temperature)"
 ambientHum="$(cat /home/$me/Software/thingspeak/humidity)"
