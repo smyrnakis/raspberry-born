@@ -15,7 +15,7 @@ The data will include ambient *temperature* and *humidity* (from a **DHT11** sen
 Register a free account on [Thingspeak website](https://thingspeak.com/) and create a channel. Name the fields and save the changes.
 
 <p float="center">
-  <img src="../img/ts1.png" width="600" />
+  <img src="../img/ts1.png" width="650" />
 </p>
 
 <!-- ![thingspeak 1](../img/ts1.png) -->
@@ -76,7 +76,10 @@ mkdir Software/thingspeak
 cd Software/thingspeak
 ```
 
-Create a file called `thingspeak.py` and paste the code from [thingspeak.py](https://github.com/smyrnakis/raspberry-born/blob/main/src/thingspeak.py), replacing with your *Thingspeak WRITE API key* in `line 15`:
+Create a file called `thingspeak.py` and paste the code from the file [thingspeak.py](https://github.com/smyrnakis/raspberry-born/blob/main/src/thingspeak.py) .
+
+Replace with your *Thingspeak WRITE API key* in `line 15` and with your `{YOUR-USERNAME}` in `line 26` and `line 30`:
+
 ``` bash
 nano thingspeak.py
 ```
@@ -98,6 +101,8 @@ sudo python setup.py install
 sudo python3 setup.py install
 ```
 
+*NOTE:* every successful read of DHT11 is updating the files `temperature` & `humidity` located in `$HOME/Software/thingspeak/`.
+
 ## Testing
 
 The script can be tested by enabling *debugging messages* in `line 17`:
@@ -105,9 +110,9 @@ The script can be tested by enabling *debugging messages* in `line 17`:
 showDebugs = True
 ```
 
-Since we added interpreter (the line `#!/usr/bin/python3` at the beginning of the script), we only need to call it in order to execute:
+Execute it:
 ``` bash
-thingspeak.py
+python3 thingspeak.py
 ```
 
 To kill the script, *suspend* it (`Ctrl + Z`) and then use the `kill` command:
@@ -145,6 +150,7 @@ and add the line:
 ``` bash
 @reboot /home/{YOUR-USERNAME}/Software/thingspeak/thingspeak.py
 ```
+Since we added interpreter (the line `#!/usr/bin/python3` at the beginning of the script), we do not need to `python3` call before the script path.
 
 <br>
 

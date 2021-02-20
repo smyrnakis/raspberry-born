@@ -19,6 +19,22 @@ previousHumidity = 100
 showDebugs = False
 
 
+def writeDataFile(humidity, temperature):
+    # Writing last measured values (humidity & temperature) to files for further usage by other scripts
+
+    try:
+        fh = open('/home/{YOUR-USERNAME}/Software/thingspeak/humidity','wt')
+        fh.write(str(humidity))
+        fh.close()
+
+        ft = open('/home/{YOUR-USERNAME}/Software/thingspeak/temperature','wt')
+        ft.write(str(temperature))
+        ft.close()
+        if showDebugs: print("[THINKGSPEAK] files written")
+    except:
+        print("[THINKGSPEAK] Failed to write files !")
+
+
 def validateDHT(humidity, temperature):
     # DHT11 range is 0-50 degrees C for temperature and 20-90 % for humidity
     # This function validates that:
@@ -46,6 +62,7 @@ def validateDHT(humidity, temperature):
     previousHumidity = humidity
     previousTemperature = temperature
 
+    writeDataFile(humidity, temperature)
     return humidity, temperature
 
 
