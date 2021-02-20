@@ -14,7 +14,11 @@ The data will include ambient *temperature* and *humidity* (from a **DHT11** sen
 
 Register a free account on [Thingspeak website](https://thingspeak.com/) and create a channel. Name the fields and save the changes.
 
-![thingspeak 1](../img/ts1.png)
+<p float="center">
+  <img src="../img/ts1.png" width="450" />
+</p>
+
+<!-- ![thingspeak 1](../img/ts1.png) -->
 
 Next, go on *API Keys* and note down the **Write API key**.
 
@@ -29,16 +33,25 @@ You will need a *DHT11* sensor and a *10KΩ resistor*.
 
 <br>
 
+<p float="left">
+  <img src="../img/DHT11-pinout.jpg" width="450" />
+  <img src="../img/raspi-pinout.png" width="450" />
+</p>
+
+<!--
+
 ![dht11-pinout](../img/DHT11-pinout.jpg)
 
 ![dht11-pinout](../img/raspi-pinout.png)
 
+-->
+
 I am using a custom made PCB board to hold the sensor, an 1-meter USB cable and a USB port connected on Raspberry Pi's GPIO23, 3.3V & GND pins.
 
 <p float="left">
-  <img src="../img/DHT11_1.jpg" width="200" />
-  <img src="../img/DHT11_2.jpg" width="200" /> 
-  <img src="../img/DHT11_3.jpg" width="200" />
+  <img src="../img/DHT11_1.jpg" width="350" />
+  <img src="../img/DHT11_2.jpg" width="350" />
+  <img src="../img/DHT11_3.jpg" width="350" />
 </p>
 
 <!--
@@ -128,12 +141,21 @@ sudo crontab -e
 
 and add the line:
 ``` bash
-@reboot python /home/{YOUR-USERNAME}/Software/thingspeak/thingspeak.py
+@reboot /home/{YOUR-USERNAME}/Software/thingspeak/thingspeak.py
 ```
 
 <br>
 
+<p float="left">
+  <img src="../img/ts2.png" width="450" />
+  <img src="../img/DHT11_4.jpg" width="450" />
+</p>
+
+<!--
+
 ![dht11-pinout](../img/ts2.png)
 ![dht11-pinout](../img/DHT11_4.jpg)
+
+-->
 
 <br>
