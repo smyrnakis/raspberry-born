@@ -152,6 +152,41 @@ and add the line:
 ```
 Since we added interpreter (the line `#!/usr/bin/python3` at the beginning of the script), we do not need to `python3` call before the script path.
 
+## `environment` alias
+
+You can add an *alias* to print DHT readings in your terminal. The files `temperature` & `humidity` located in `$HOME/Software/thingspeak/` can be used.
+
+### Create an alias
+
+- If you are using `zsh` shell, use the guide [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/zsh.md#aliases).
+- If you are using `bash`, add the alias in the `~/.bashrc` file.
+
+Either in `~/.bashrc` or `~/.oh-my-zsh/custom/aliases.zsh` file, add the following:
+
+``` bash
+alias environment='echo "Temperature...: $(cat $HOME/Software/thingspeak/temperature) \xc2\xb0C \nHumidity......: $(cat $HOME/Software/thingspeak/humidity) %"'
+```
+
+### Reload your profile & test
+
+Source the file:
+``` bash
+# for ZSH shell
+source ~/.zshrc
+
+# for BASH shell
+source ~/.bashrc
+```
+
+Now when you type `environment` you will see the last DHT11 measurements:
+
+``` bash
+$ environment
+
+Temperature...: 20.0 °C
+Humidity......: 36.0 %
+```
+
 <br>
 
 <p float="left">

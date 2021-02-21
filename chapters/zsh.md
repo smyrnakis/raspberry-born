@@ -46,6 +46,20 @@ Change the line to:
 plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
 ```
 
+### Aliases
+
+Create a file named `aliases.zsh` in `~/.oh-my-zsh/custom` directory and add your aliases there.
+
+``` bash
+cd ~/.oh-my-zsh/custom
+touch aliases.zsh
+```
+
+Example:
+``` bash
+alias hw='echo "Hello world!"'
+```
+
 ### Extra
 
 Edit the file `~/.zshrc` accordingly:
