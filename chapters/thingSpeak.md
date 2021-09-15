@@ -78,7 +78,7 @@ cd Software/thingspeak
 
 Create a file called `thingspeak.py` and paste the code from the file [thingspeak.py](https://github.com/smyrnakis/raspberry-born/blob/main/src/thingspeak.py) .
 
-Replace with your *Thingspeak WRITE API key* in `line 15` and with your `{YOUR-USERNAME}` in `line 26` and `line 30`:
+Replace with your *Thingspeak WRITE API key* in `line 16` and with your `{YOUR-USERNAME}` in `line 32` and `line 36`:
 
 ``` bash
 nano thingspeak.py
