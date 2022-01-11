@@ -18,17 +18,23 @@ In the configuration screen, use:
 # service
 other
 
+# XXXXX
+noip
+
 # server
 dynupdate.no-ip.com
 
-# protocol
-dyndns2
+# # protocol
+# dyndns2
 
 # username
 {YOUR-NOIP-USERNAME}
 
 # password
 {YOUR-NOIP-PASSWORD}
+
+# detection method
+Web-based IP discovery service
 
 # interface
 eth0
@@ -40,14 +46,14 @@ eth0
 
 Ensure the following exist in the file `/etc/ddclient.conf` :
 ``` bash
-use=web, web=checkip.dyndns.com/, web-skip='IP Address'
-ssl=yes
+use=web, web=checkip.dyndns.com/, web-skip='IP Address' \
+ssl=yes \
 ```
 
 Ensure the following exist in the file `/etc/default/ddclient` :
 ``` bash
 run_daemon="true"
-daemon_interval="300"
+daemon_interval="5m"
 ```
 
 Restart the client:
