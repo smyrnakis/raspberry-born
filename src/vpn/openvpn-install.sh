@@ -4,7 +4,7 @@
 #
 # Copyright (c) 2013 Nyr. Released under the MIT License.
 # 
-# Updated: 2021/01/13 by https://github.com/smyrnakis
+# Updated: 2022/01/26 by https://github.com/smyrnakis
 #
 
 # Detect Debian users running the script with "sh" instead of bash
@@ -32,9 +32,9 @@ elif [[ -e /etc/debian_version ]]; then
 	os="debian"
 	os_version=$(grep -oE '[0-9]+' /etc/debian_version | head -1)
 	group_name="nogroup"
-elif [[ -e /etc/centos-release ]]; then
+elif [[ -e /etc/almalinux-release || -e /etc/rocky-release || -e /etc/centos-release ]]; then
 	os="centos"
-	os_version=$(grep -oE '[0-9]+' /etc/centos-release | head -1)
+	os_version=$(grep -shoE '[0-9]+' /etc/almalinux-release /etc/rocky-release /etc/centos-release | head -1)
 	group_name="nobody"
 elif [[ -e /etc/fedora-release ]]; then
 	os="fedora"
@@ -42,7 +42,7 @@ elif [[ -e /etc/fedora-release ]]; then
 	group_name="nobody"
 else
 	echo "This installer seems to be running on an unsupported distribution.
-Supported distributions are Ubuntu, Debian, CentOS, and Fedora."
+Supported distros are Ubuntu, Debian, AlmaLinux, Rocky Linux, CentOS and Fedora."
 	exit
 fi
 
@@ -101,6 +101,13 @@ new_client () {
 }
 
 if [[ ! -e /etc/openvpn/server/server.conf ]]; then
+	# Detect some Debian minimal setups where neither wget nor curl are installed
+	if ! hash wget 2>/dev/null && ! hash curl 2>/dev/null; then
+		echo "Wget is required to use this installer."
+		read -n1 -r -p "Press any key to install Wget and continue..."
+		apt-get update
+		apt-get install -y wget
+	fi
 	clear
 	echo 'Welcome to this OpenVPN road warrior installer!'
 	# If system has a single IPv4, it is selected automatically. Else, ask the user
@@ -119,7 +126,7 @@ if [[ ! -e /etc/openvpn/server/server.conf ]]; then
 		[[ -z "$ip_number" ]] && ip_number="1"
 		ip=$(ip -4 addr | grep inet | grep -vE '127(\.[0-9]{1,3}){3}' | cut -d '/' -f 1 | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' | sed -n "$ip_number"p)
 	fi
-	# If $ip is a private IP address, the server must be behind NAT
+	# If $ip is a private IP address, the server must be behind NAT
 	if echo "$ip" | grep -qE '^(10\.|172\.1[6789]\.|172\.2[0-9]\.|172\.3[01]\.|192\.168)'; then
 		echo
 		echo "This server is behind NAT. What is the public IPv4 address or hostname?"
@@ -177,11 +184,11 @@ if [[ ! -e /etc/openvpn/server/server.conf ]]; then
 	done
 	[[ -z "$port" ]] && port="1194"
 	echo
-	echo "What will be the external OpenVpn port?"
+	echo "What will be the external OpenVPN port?"
 	read -p "External Port [1194]: " extport
 	until [[ -z "$extport" || "$extport" =~ ^[0-9]+$ && "$extport" -le 65535 ]]; do
-		echo "$extport: invalid port."
-		read -p "External Port [1194]: " extport
+  		echo "$extport: invalid port."
+  		read -p "External Port [1194]: " extport
 	done
 	[[ -z "$extport" ]] && extport="1194"
 	echo
@@ -205,7 +212,7 @@ if [[ ! -e /etc/openvpn/server/server.conf ]]; then
 	[[ -z "$client" ]] && client="client"
 	echo
 	echo "OpenVPN installation is ready to begin."
-	# Install a firewall in the rare case where one is not already available
+	# Install a firewall if firewalld or iptables are not already available
 	if ! systemctl is-active --quiet firewalld.service && ! hash iptables 2>/dev/null; then
 		if [[ "$os" == "centos" || "$os" == "fedora" ]]; then
 			firewall="firewalld"
@@ -245,6 +252,11 @@ LimitNPROC=infinity" > /etc/systemd/system/openvpn-server@server.service.d/disab
 	chown -R root:root /etc/openvpn/server/easy-rsa/
 	cd /etc/openvpn/server/easy-rsa/
 	cp vars.example vars
+	echo 'set_var EASYRSA_REQ_COUNTRY GR' >> vars
+	echo 'set_var EASYRSA_REQ_PROVINCE Attika' >> vars
+	echo 'set_var EASYRSA_REQ_CITY Athens' >> vars
+	echo 'set_var EASYRSA_REQ_EMAIL {YOUR_EMAIL}' >> vars
+	echo 'set_var EASYRSA_REQ_OU MyCorp' >> vars
 	echo 'set_var EASYRSA_KEY_SIZE  4096' >> vars
 	# Create the PKI, set up the CA and the server and client certificates
 	./easyrsa init-pki
@@ -338,7 +350,7 @@ user nobody
 group $group_name
 persist-key
 persist-tun
-verb 4
+verb 3
 mute 10
 status /var/log/openvpn-status.log 20
 log-append /var/log/openvpn.log
@@ -347,12 +359,12 @@ crl-verify crl.pem" >> /etc/openvpn/server/server.conf
 		echo "explicit-exit-notify" >> /etc/openvpn/server/server.conf
 	fi
 	# Enable net.ipv4.ip_forward for the system
-	echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/30-openvpn-forward.conf
+	echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-openvpn-forward.conf
 	# Enable without waiting for a reboot or service restart
 	echo 1 > /proc/sys/net/ipv4/ip_forward
 	if [[ -n "$ip6" ]]; then
 		# Enable net.ipv6.conf.all.forwarding for the system
-		echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.d/30-openvpn-forward.conf
+		echo "net.ipv6.conf.all.forwarding=1" >> /etc/sysctl.d/99-openvpn-forward.conf
 		# Enable without waiting for a reboot or service restart
 		echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
 	fi
@@ -476,7 +488,7 @@ else
 				client=$(sed 's/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-]/_/g' <<< "$unsanitized_client")
 			done
 			cd /etc/openvpn/server/easy-rsa/
-			EASYRSA_CERT_EXPIRE=3650 ./easyrsa build-client-full "$client"
+			EASYRSA_CERT_EXPIRE=3650 ./easyrsa build-client-full "$client" 
 			# Generates the custom client.ovpn
 			new_client
 			echo
@@ -557,14 +569,15 @@ else
 					semanage port -d -t openvpn_port_t -p "$protocol" "$port"
 				fi
 				systemctl disable --now openvpn-server@server.service
-				rm -rf /etc/openvpn/server
 				rm -f /etc/systemd/system/openvpn-server@server.service.d/disable-limitnproc.conf
-				rm -f /etc/sysctl.d/30-openvpn-forward.conf
+				rm -f /etc/sysctl.d/99-openvpn-forward.conf
 				if [[ "$os" = "debian" || "$os" = "ubuntu" ]]; then
+					rm -rf /etc/openvpn/server
 					apt-get remove --purge -y openvpn
 				else
 					# Else, OS must be CentOS or Fedora
 					yum remove -y openvpn
+					rm -rf /etc/openvpn/server
 				fi
 				echo
 				echo "OpenVPN removed!"

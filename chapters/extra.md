@@ -1,5 +1,38 @@
 # Extra commands and snippets
-*(shorted alphabetically)*
+*(shorted alphabetically **after** logs section)*
+
+<br>
+
+### Useful logs & debugging locations
+
+``` bash
+# main & system logs
+sudo tail /var/log/syslog
+sudo tail /var/log/messages
+
+# security
+sudo tail /var/log/auth.log
+
+# unattended-upgrade
+sudo cat /var/log/syslog | grep unattended-upgrade
+
+# msmtp email logs
+sudo cat /var/log/syslog | grep msmtp
+sudo tail /var/log/mail.log
+
+# OpenVPN
+sudo tail -f /var/log/openvpn-status.log
+sudo tail -f /var/log/openvpn.log
+grep VPN /var/log/syslog
+
+ps aux | grep "OpenVPN-email.sh"
+
+# Pi-hole
+pihole status
+pihole -c -e
+pihole -c -r 5
+tail -f /var/log/pihole.log
+```
 
 <br>
 

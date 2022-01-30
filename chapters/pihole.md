@@ -37,40 +37,35 @@ curl -sSL https://install.pi-hole.net | bash
 
 ### Configuration during installation
 ``` bash
-# interface
+# Choose yes to indicate that you have understood this message, and wish to continue
+yes
+
+# interface (in order to be able to work with OpenVPN. If not using OpenVPN, select 'eth0')
 tun0
 
-# upstream DNS provider
-OpenDNS
-
-# block lists
-all
-
-# IP protocols
+# IP protocols (if you use IP v6)
 both
 
 # Do you want to use your current network settings as a static address?
-no
+skip
 
-# desired IP
-# e.g: 192.168.1.100/24
-{YOUR-LOCAL-IP}/{YOUR-NETWORK-MASK}
+# Choose an upstream DNS provider
+OpenDNS
 
-# default gateway
-# e.g: 192.168.1.1
-{YOUR-ROUTER-IP}
+# block lists
+all offered
 
 # Do you wish to install the web admin interface?
 on
 
-# Do you wish to install the web server?
+# Do you wish to install the web server (lighttpd) and required PHP modules?
 on
 
 # Do you want to log queries?
 on
 
 # Select a privacy mode for FTL.
-0 - show everything
+0 Show everything
 
 # !!! IMPORTANT !!!
 # KEEP A NOTE OF THE ADMIN PASSWORD
@@ -104,8 +99,8 @@ pihole -a -i all
 # Access admin panel at {RASPBERRY-PI-IP}/admin
 # e.g: 192.168.1.100/admin
 
-# Settings --> DNS --> Interface listening behavior
-Listen on all interfaces
+# Settings --> DNS --> Interface settings --> Potentially dangerous options
+Permit all origins
 ```
 
 ## OpenVPN configuration
@@ -123,12 +118,12 @@ cd ya-pihole-list
 
 Edit the following in the `adlists-updater.sh` :
 ``` bash
-# replace username / fix the paths in lines 12 & 13
-adListFile="/home/{YOUR-USERNAME}/Software/ya-pihole-list/adlists.list.updater"
-tmpFile="/home/{YOUR-USERNAME}/Software/ya-pihole-list/adlists.list.updater.tmp"
+# replace username / fix the paths in lines 18 & 19
+adListFile="$HOME/Software/ya-pihole-list/adlists.list.updater"
+tmpFile="$HOME/Software/ya-pihole-list/adlists.list.updater.tmp"
 
-# line 38
-apt-get update -y && apt-get upgrade -y
+# line 39
+apt-get update && apt-get upgrade -y
 ```
 
 Make the script executable and run it:

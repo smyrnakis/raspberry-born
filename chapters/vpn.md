@@ -14,7 +14,7 @@
 
 Ensure the system is updated:
 ``` bash
-sudo apt-get update -y && sudo apt-get upgrade -y
+sudo apt-get update && sudo apt-get upgrade -y
 ```
 
 Create a directory named `OpenVPN`, subdirectory of `Software` in your `$HOME` :
@@ -33,13 +33,19 @@ chmod 755 openvpn-install.sh
 
 ### Getting installation script ready
 
+*The above script (version of 13/12/2021, including the customisations) is also available [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/openvpn-install.sh).*
+
+*It is recommended that you always get the newest version and follow the above steps before a fresh OpenVPN installation.*
+
+<br>
+
 Edit the installation script accordingly:
 ``` bash
 nano openvpn-install.sh
 ```
 
 #### External port
-Add *External port* section, just after line `170` :
+Add *External port* section, just after line `170`. This is the external port you plan to open in your router, where the clients will connect to :
 ``` bash
 echo "What port should OpenVPN listen to?"
 read -p "Port [1194]: " port
@@ -204,10 +210,6 @@ EASYRSA_CERT_EXPIRE=3650 ./easyrsa build-client-full "$client"
 
 <br>
 
-*The above script (version of 13/12/2021, including the customisations) is also available [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/openvpn-install.sh).*
-
-*It is recommended that you always get the newest version and follow the above steps before a fresh OpenVPN installation.*
-
 ### Dynamic DNS
 
 It would be useful to set up a Dynamic DNS FQDN before starting the installation of OpenVPN. That way, you will be able to easily connect to your server remotely.
@@ -309,6 +311,16 @@ Select an option:
 ```
 
 <br>
+
+### UFW configuration
+
+Allow OpenVPN through UFW firewall:
+
+``` bash
+sudo ufw allow openvpn
+```
+
+<br>
 <br>
 
 ## Extra
@@ -332,7 +344,7 @@ push "route 192.168.178.0 255.255.255.0"
 
 [Restart](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn.md#startstoprestart-openvpn-service) OpenVPN server to apply the changes.
 
-#### Another way
+#### Another way (NOTE 2022/1/30: not to be used)
 You could achieve the same result by instructing the Pi-hole to listen **only** on `eth0` interface and by adding the appropriate *route* & *DNS* in the `server.conf` file.
 
 ``` bash
@@ -450,6 +462,11 @@ client-disconnect "/usr/bin/sudo /usr/bin/bash /home/{YOUR-USERNAME}/Software/Op
 The following steps will be checking the `/var/log/openvpn-status.log` log file for client's *connection* or *disconnection* and email us accordingly.
 
 > The script is using the `msmtp` tool. Instructions on how to configure `msmtp` are available [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/email.md).
+> 
+> 
+> The script is using the `inotify` tool. Install it if not available:
+> 
+> `apt-get install -y inotify-tools`
 
 Create a file in `~/Software/OpenVPN/OpenVPN-email.sh`
 ``` bash
@@ -466,6 +483,11 @@ Add the following code into the file : [OpenVPN-email.sh](https://github.com/smy
 sudo nano OpenVPN-email.sh
 ```
 
+Add your email in line 13:
+``` bash
+recipient="{YOUR-EMAIL}"
+```
+
 Set the script to run on Raspberry's boot:
 ``` bash
 sudo crontab -e
@@ -473,10 +495,30 @@ sudo crontab -e
 
 and add the line:
 ``` bash
-@reboot bash /home/{YOUR-USERNAME}/Software/OpenVPN/OpenVPN-email.sh
+@reboot sudo bash /home/{YOUR-USERNAME}/Software/OpenVPN/OpenVPN-email.sh
 ```
 
-The script will email you the names and source IPs of the currently connected client(s) (everytime a new client is connected or disconnected) and with the message *'All clients DISCONNECTED'* when there is no connected client on the OpenVPN server.
+In order to allow the script to run with `sudo` command, you need to add it in the `visudo` file.
+``` bash
+sudo visudo
+```
+
+Add the following lines, replacing `{USERNAME}` with your username:
+``` bash
+# Give OpenVPN-email.sh script root permissions
+{USERNAME} ALL=(ALL) NOPASSWD: /home/{USERNAME}/Software/OpenVPN/OpenVPN-email.sh
+```
+
+The script will email you the names and source IPs of the currently connected client(s) (every time a new client is connected or disconnected) and with the message *'All clients DISCONNECTED'* when there is no connected client on the OpenVPN server.
+
+#### Debugging
+
+To verify that the script is running, especially after a reboot, execute the following command:
+``` bash
+ps aux | grep "OpenVPN-email.sh"
+
+root     1917605  0.0  0.0   6956  1724 ?        S    00:45   0:00 bash /home/tolis/Software/OpenVPN/OpenVPN-email.sh
+```
 
 ### Indicator LED
 
@@ -532,8 +574,9 @@ and add the line:
 
 ### Files' security
 ``` bash
-chmod 710 -r /etc/openvpn/client
-chmod 710 -r /etc/openvpn/server
+sudo su
+chmod 700 /etc/openvpn/client
+# chmod -R 755 /etc/openvpn/server
 ```
 
 ### A note on security
