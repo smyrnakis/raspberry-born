@@ -61,6 +61,8 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 
 [vim editor](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vim.md) - install & configure vim editor
 
+[X-C1 board](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/x-c1.md) - install & configure X-C1 power/fan board
+
 <br>
 
 ## Extra
