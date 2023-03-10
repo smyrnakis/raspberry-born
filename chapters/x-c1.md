@@ -8,6 +8,8 @@
 
 *Article 4: https://wiki.geekworm.com/NASPi#FAQ*
 
+*Assembly Video: https://www.youtube.com/watch?v=ithz2Mg5Vrc*
+
 <br>
 
 ## Preparation
