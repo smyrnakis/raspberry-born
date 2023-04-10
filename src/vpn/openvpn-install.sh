@@ -4,7 +4,7 @@
 #
 # Copyright (c) 2013 Nyr. Released under the MIT License.
 # 
-# Updated: 2022/01/26 by https://github.com/smyrnakis
+# Updated: 2023/03/13 by https://github.com/smyrnakis
 #
 
 # Detect Debian users running the script with "sh" instead of bash
@@ -233,7 +233,7 @@ LimitNPROC=infinity" > /etc/systemd/system/openvpn-server@server.service.d/disab
 	fi
 	if [[ "$os" = "debian" || "$os" = "ubuntu" ]]; then
 		apt-get update
-		apt-get install -y openvpn openssl ca-certificates $firewall
+		apt-get install -y --no-install-recommends openvpn openssl ca-certificates $firewall
 	elif [[ "$os" = "centos" ]]; then
 		yum install -y epel-release
 		yum install -y openvpn openssl ca-certificates tar $firewall
@@ -246,24 +246,20 @@ LimitNPROC=infinity" > /etc/systemd/system/openvpn-server@server.service.d/disab
 		systemctl enable --now firewalld.service
 	fi
 	# Get easy-rsa
-	easy_rsa_url='https://github.com/OpenVPN/easy-rsa/releases/download/v3.0.8/EasyRSA-3.0.8.tgz'
+	easy_rsa_url='https://github.com/OpenVPN/easy-rsa/releases/download/v3.1.2/EasyRSA-3.1.2.tgz'
 	mkdir -p /etc/openvpn/server/easy-rsa/
 	{ wget -qO- "$easy_rsa_url" 2>/dev/null || curl -sL "$easy_rsa_url" ; } | tar xz -C /etc/openvpn/server/easy-rsa/ --strip-components 1
 	chown -R root:root /etc/openvpn/server/easy-rsa/
 	cd /etc/openvpn/server/easy-rsa/
 	cp vars.example vars
-	echo 'set_var EASYRSA_REQ_COUNTRY GR' >> vars
-	echo 'set_var EASYRSA_REQ_PROVINCE Attika' >> vars
-	echo 'set_var EASYRSA_REQ_CITY Athens' >> vars
-	echo 'set_var EASYRSA_REQ_EMAIL {YOUR_EMAIL}' >> vars
-	echo 'set_var EASYRSA_REQ_OU MyCorp' >> vars
 	echo 'set_var EASYRSA_KEY_SIZE  4096' >> vars
+	echo 'set_var EASYRSA_REQ_EMAIL  {YOUR-EMAIL}' >> vars
 	# Create the PKI, set up the CA and the server and client certificates
-	./easyrsa init-pki
+	./easyrsa --batch init-pki
 	./easyrsa --batch build-ca nopass
-	EASYRSA_CERT_EXPIRE=3650 ./easyrsa build-server-full server nopass
-	EASYRSA_CERT_EXPIRE=3650 ./easyrsa build-client-full "$client"
-	EASYRSA_CRL_DAYS=3650 ./easyrsa gen-crl
+	./easyrsa --batch --days=3650 build-server-full server nopass
+	./easyrsa --batch --days=3650 build-client-full "$client" 
+	./easyrsa --batch --days=3650 gen-crl
 	# Move the stuff we need
 	cp pki/ca.crt pki/private/ca.key pki/issued/server.crt pki/private/server.key pki/crl.pem /etc/openvpn/server
 	# CRL is read with each client connection, while OpenVPN is dropped to nobody
@@ -313,13 +309,13 @@ server 10.8.0.0 255.255.255.0" > /etc/openvpn/server/server.conf
 		1|"")
 			# Locate the proper resolv.conf
 			# Needed for systems running systemd-resolved
-			if grep -q '^nameserver 127.0.0.53' "/etc/resolv.conf"; then
-				resolv_conf="/run/systemd/resolve/resolv.conf"
-			else
+			if grep '^nameserver' "/etc/resolv.conf" | grep -qv '127.0.0.53' ; then
 				resolv_conf="/etc/resolv.conf"
+			else
+				resolv_conf="/run/systemd/resolve/resolv.conf"
 			fi
 			# Obtain the resolvers from resolv.conf and use them for OpenVPN
-			grep -v '^#\|^;' "$resolv_conf" | grep '^nameserver' | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' | while read line; do
+			grep -v '^#\|^;' "$resolv_conf" | grep '^nameserver' | grep -v '127.0.0.53' | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' | while read line; do
 				echo "push \"dhcp-option DNS $line\"" >> /etc/openvpn/server/server.conf
 			done
 		;;
@@ -344,6 +340,7 @@ server 10.8.0.0 255.255.255.0" > /etc/openvpn/server/server.conf
 			echo 'push "dhcp-option DNS 94.140.15.15"' >> /etc/openvpn/server/server.conf
 		;;
 	esac
+	echo 'push "block-outside-dns"' >> /etc/openvpn/server/server.conf
 	echo "keepalive 10 120
 cipher AES-256-CBC
 user nobody
@@ -451,7 +448,6 @@ remote-cert-tls server
 auth SHA512
 cipher AES-256-CBC
 ignore-unknown-option block-outside-dns
-block-outside-dns
 verb 3" > /etc/openvpn/server/client-common.txt
 	# Enable and start the OpenVPN service
 	systemctl enable --now openvpn-server@server.service
@@ -488,7 +484,7 @@ else
 				client=$(sed 's/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-]/_/g' <<< "$unsanitized_client")
 			done
 			cd /etc/openvpn/server/easy-rsa/
-			EASYRSA_CERT_EXPIRE=3650 ./easyrsa build-client-full "$client" 
+			./easyrsa --batch --days=3650 build-client-full "$client"
 			# Generates the custom client.ovpn
 			new_client
 			echo
@@ -522,7 +518,7 @@ else
 			if [[ "$revoke" =~ ^[yY]$ ]]; then
 				cd /etc/openvpn/server/easy-rsa/
 				./easyrsa --batch revoke "$client"
-				EASYRSA_CRL_DAYS=3650 ./easyrsa gen-crl
+				./easyrsa --batch --days=3650 gen-crl
 				rm -f /etc/openvpn/server/crl.pem
 				cp /etc/openvpn/server/easy-rsa/pki/crl.pem /etc/openvpn/server/crl.pem
 				# CRL is read with each client connection, when OpenVPN is dropped to nobody

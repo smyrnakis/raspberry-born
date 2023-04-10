@@ -45,7 +45,7 @@ nano openvpn-install.sh
 ```
 
 #### External port
-Add *External port* section, just after line `170`. This is the external port you plan to open in your router, where the clients will connect to :
+Add *External port* section, just after line `177`. This is the external port you plan to open in your router, where the clients will connect to :
 ``` bash
 echo "What port should OpenVPN listen to?"
 read -p "Port [1194]: " port
@@ -69,14 +69,14 @@ echo
 
 #### *easy-rsa* version
 The installation script will download `easy-rsa` from the official OpenVPN's [Github](https://github.com/OpenVPN/easy-rsa/releases/) repo.
-It's recommended that you check the latest version in the repo is the same with the one the script will download *(`v3.0.8` as of 14/1/2021)*.
+It's recommended that you check the latest version in the repo is the same with the one the script will download *(`v3.1.2` as of 12/3/2023)*.
 ``` bash
-# line 240
-easy_rsa_url='https://github.com/OpenVPN/easy-rsa/releases/download/v3.0.8/EasyRSA-3.0.8.tgz'
+# line 247
+easy_rsa_url='https://github.com/OpenVPN/easy-rsa/releases/download/v3.1.2/EasyRSA-3.1.2.tgz'
 ```
 
 #### easy-rsa *KEY_SIZE*
-Add `EASYRSA_KEY_SIZE` var, after line `245`:
+Add `EASYRSA_KEY_SIZE` var, after line `251`:
 ``` bash
 chown -R root:root /etc/openvpn/server/easy-rsa/
 cd /etc/openvpn/server/easy-rsa/
@@ -92,7 +92,7 @@ echo 'set_var EASYRSA_REQ_EMAIL  {YOUR-EMAIL}' >> vars
 ```
 
 #### Client's password
-Remove the `nopass` argument from client's keys creation in line `251`:
+Remove the `nopass` argument from client's keys creation in line `259`:
 
 ``` bash
 ./easyrsa --batch build-ca nopass
@@ -105,12 +105,12 @@ EASYRSA_CERT_EXPIRE=3650 ./easyrsa build-client-full "$client"
 Doing this, the script will ask you to set client's certificate password which will be needed in order to connect to the server, improving the security of the configuration.
 
 #### DH parameters
-It is recommended to use `ffdhe4096` rather the `ffdhe2048` in order to increase the security. In line `262` there are the *pre-defined **ffdhe2048*** parameters.
+It is recommended to use `ffdhe4096` rather the `ffdhe2048` in order to increase the security. In line `270` there are the *pre-defined **ffdhe2048*** parameters.
 
 Replace them with the *pre-defined **ffdhe4096*** available [HERE](https://github.com/internetstandards/dhe_groups/blob/master/ffdhe4096.pem) *(NL Internet Standards)* and also [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/ffdhe4096.pem) *(re-uploaded on my repo)*.
 
 ``` bash
-# line 262
+# line 270
 
 # <<< PART TO BE REPLACED STARTS HERE >>>
 echo '-----BEGIN DH PARAMETERS-----
@@ -142,10 +142,10 @@ zAqCkc3OyX3Pjsm1Wn+IpGtNtahR9EGC4caKAH5eZV9q//////////8CAQI=
 *More info: [IETF RFC 7919](https://tools.ietf.org/html/rfc7919)*
 
 #### TLS version
-To strengthen against downgrade attack on the TLS protocol level, add in a new line the `tls-version-min 1.2` on both *server* and *client* configuration (approx lines: `287` & `437` respectively).
+To strengthen against downgrade attack on the TLS protocol level, add in a new line the `tls-version-min 1.2` on both *server* and *client* configuration (approx lines: `293` & `441` respectively).
 
 ``` bash
-# line 282
+# line 293
 ca ca.crt
 cert server.crt
 key server.key
@@ -159,7 +159,7 @@ topology subnet
 
 # [...]
 
-# line 434
+# line 441
 nobind
 persist-key
 persist-tun
@@ -171,16 +171,11 @@ auth SHA512
 ```
 
 #### Server logging
-Change the logging directives of the server in line `338`:
+Change the logging directives of the server after the line `348`:
 
 ``` bash
-# <<< PART TO BE REMOVED STARTS HERE >>>
-status openvpn-status.log
 verb 3
-# <<< PART TO BE REMOVED FINISHES HERE >>>
-
 # <<< PART TO BE ADDED STARTS HERE >>>
-verb 3
 mute 10
 status /var/log/openvpn-status.log 20
 log-append /var/log/openvpn.log
@@ -188,7 +183,7 @@ log-append /var/log/openvpn.log
 ```
 
 #### Client configuration
-Replace `$port` variable with `$extport` in line `429`:
+Replace `$port` variable with `$extport` in line `439`:
 
 ``` bash
 dev tun
@@ -199,7 +194,7 @@ remote $ip $extport
 ```
 
 #### Client's password (when adding new client)
-Remove the `nopass` argument from client's keys creation in line `475`:
+Remove the `nopass` argument from client's keys creation in line `485`:
 
 ``` bash
 cd /etc/openvpn/server/easy-rsa/
@@ -270,6 +265,11 @@ Name [client]: MyMobile
 
 OpenVPN installation is ready to begin.
 Press any key to continue...
+
+# [...]
+
+# Enter the password for the first client
+Enter PEM pass phrase:
 ```
 
 At this step, the script will install the following packages (if not already installed):
@@ -290,8 +290,8 @@ cp /root/MyMobile.ovpn /home/{YOUR-USERNAME}/MyMobile.ovpn
 
 For long term storage, you can create a directory under `/etc/openvpn/client/` and name it after the current date.
 ``` bash
-mkdir /etc/openvpn/client/20210118
-mv /root/*.ovpn /etc/openvpn/client/20210118/
+mkdir /etc/openvpn/client/20230312
+mv /root/*.ovpn /etc/openvpn/client/20230312/
 ```
 
 <br>
@@ -317,7 +317,7 @@ Select an option:
 Allow OpenVPN through UFW firewall:
 
 ``` bash
-sudo ufw allow openvpn
+sudo ufw allow openvpn comment 'OpenVPN'
 ```
 
 <br>
@@ -400,6 +400,15 @@ proto tcp
 remote {YOUR-EXTERNAL-IP} 443
 socket-flags TCP_NODELAY          #reduce latency
 ```
+
+### Files' security
+``` bash
+sudo su
+chmod 700 /etc/openvpn/client
+# chmod -R 755 /etc/openvpn/server
+```
+
+<br>
 
 ### Notification email
 
@@ -572,12 +581,7 @@ and add the line:
 @reboot bash /home/{YOUR-USERNAME}/Software/OpenVPN/OpenVPN-LED.sh
 ```
 
-### Files' security
-``` bash
-sudo su
-chmod 700 /etc/openvpn/client
-# chmod -R 755 /etc/openvpn/server
-```
+<br>
 
 ### A note on security
 
