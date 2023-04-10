@@ -108,7 +108,7 @@ ssh pi@192.168.178.31
 Update OS
 
 ``` bash
-sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get clean
+sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get clean
 ```
 
 raspi-config

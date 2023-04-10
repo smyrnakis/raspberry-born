@@ -44,11 +44,16 @@ eth0
 {YOUR-NOIP-HOSTNAME}
 ```
 
-Ensure the following exist in the file `/etc/ddclient.conf` :
-``` bash
-use=web, web=checkip.dyndns.com/, web-skip='IP Address' \
+Depending on the version of the ddclient, you will find either options in `/etc/ddclient.conf` :
+```bash
+# checkip
 ssl=yes \
+use=web, web=checkip.dyndns.com/, web-skip='IP Address' \
+
+# ipify
+use=web, https://api.ipify.org/ \
 ```
+
 
 Ensure the following exist in the file `/etc/default/ddclient` :
 ``` bash
@@ -69,7 +74,7 @@ sudo service ddclient start
 Allow *ddclient* through UFW:
 ``` bash
 # ddclient is using port 80
-sudo ufw allow 80
+sudo ufw allow 80 comment 'ddclient'
 ```
 
 Troubleshooting:

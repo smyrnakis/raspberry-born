@@ -62,6 +62,13 @@ ps fauxww | grep -A 1 '[C]RON'
 
 <br>
 
+### `rc.local`
+```bash
+sudo vim /etc/rc.local
+```
+
+<br>
+
 ### Fix "`perl: warning: Falling back to a fallback locale ("en_GB.UTF-8").`"
 ``` bash
 export LANGUAGE=en_US.UTF-8
@@ -90,6 +97,16 @@ sudo apt list {PACKAGE-NAME}
 > The example bellow is for mounting a **network share** folder.
 >
 > To identify and mount a connected USB drive or microSD card, use the command `sudo fdisk -l`.
+
+To view connected storage devices use:
+```bash
+sudo lsblk
+```
+
+or for more detailed view:
+```bash
+sudo fdisk -l
+```
 
 #### One-time mount
 Create a directory where you will mount the *network share*:
@@ -146,6 +163,49 @@ The `_netdev` means that the mount is treated as a *Network Drive* thus mounting
 ``` bash
 sudo netstat -putan | grep LISTEN
 ```
+
+### Networks and IPs
+View all networks:
+```bash
+ifconfig
+
+ip -a
+```
+
+Connected SSID:
+```bash
+iwgetid
+```
+
+WiFi configuration file in `/etc/wpa_supplicant/wpa_supplicant.conf`
+```bash
+sudo vim /etc/wpa_supplicant/wpa_supplicant.conf
+```
+
+File's structure:
+```json
+network={
+    ssid="your_SSID"
+    psk="your_password"
+}
+```
+
+After updating `wpa_supplicant.conf`, use `wpa_cli reconfigure` to reconfigure the WiFi connection:
+```bash
+wpa_cli reconfigure
+```
+
+Disconnect from WiFi: 
+```bash
+sudo ifconfig wlan0 down
+```
+
+Reconnect to WiFi: 
+```bash
+sudo ifconfig wlan0 up
+```
+
+<br>
 
 ### Process by name (find)
 ``` bash
@@ -219,6 +279,22 @@ cat /var/log/auth.log | grep 'Failed password'
 cat /var/log/auth.log | grep 'Accepted publickey'
 
 cat /var/log/auth.log | grep 'Failed publickey'
+```
+
+<br>
+
+### Connected Users
+```bash
+w
+```
+```bash
+who
+```
+```bash
+users
+```
+```bash
+last
 ```
 
 <br>

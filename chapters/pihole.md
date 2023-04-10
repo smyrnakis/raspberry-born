@@ -24,6 +24,12 @@ sudo ufw allow 67/udp comment 'pihole'
 sudo ufw allow 546:547/udp comment 'pihole'   # if using IPv6
 ```
 
+### Static IP
+The Raspberry Pi needs to have a *static IP* for the pihole to function correctly.
+Make sure that you configure your router's DHCP settings or that you select a static IP in the Raspberry Pi's settings.
+
+<br>
+
 ## Install Pi-hole
 
 Script needs to run with elevated privileges:
@@ -37,6 +43,9 @@ curl -sSL https://install.pi-hole.net | bash
 
 ### Configuration during installation
 ``` bash
+# Static IP Needed
+Continue
+
 # Choose yes to indicate that you have understood this message, and wish to continue
 yes
 
@@ -46,8 +55,8 @@ tun0
 # IP protocols (if you use IP v6)
 both
 
-# Do you want to use your current network settings as a static address?
-skip
+# Static IP Address
+Skip
 
 # Choose an upstream DNS provider
 OpenDNS
@@ -56,19 +65,24 @@ OpenDNS
 all offered
 
 # Do you wish to install the web admin interface?
-on
+Yes
 
 # Do you wish to install the web server (lighttpd) and required PHP modules?
-on
+Yes
 
 # Do you want to log queries?
-on
+Yes
 
 # Select a privacy mode for FTL.
 0 Show everything
 
 # !!! IMPORTANT !!!
 # KEEP A NOTE OF THE ADMIN PASSWORD
+```
+
+Exit the elevated terminal:
+```bash
+exit
 ```
 
 ### Set admin password
@@ -110,6 +124,30 @@ Assuming an *OpenVPN* server is running on your system, configure it to use Pi-h
 <br>
 
 ## Add more domains in the Blocklist
+
+You can find many interesting blocklists here: [https://avoidthehack.com/best-pihole-blocklists](https://avoidthehack.com/best-pihole-blocklists) .
+
+From those lists, I chose:
+* https://osint.digitalside.it/Threat-Intel/lists/latestdomains.txt
+* https://v.firebog.net/hosts/Prigent-Crypto.txt
+* https://v.firebog.net/hosts/RPiList-Phishing.txt
+
+In order to add the lists:
+1. Navigate to your Pi-hole's admin panel and click on **Adlists** in the menu.
+2. In the *Address:* field, add the above URLs
+    - you can add all URLs at once, separated by space
+    - add them individually if you want to include a different *comment* for every list
+3. Click on the **Add** button
+4. Click on the **online** link just bellow to update the Gravity DB
+
+<br>
+
+<details>
+<summary>ya-pihole-list</summary>
+
+> UPDATE 2023/03/16
+> I did not use this tool now. Check the previous method, just above.
+
 ``` bash
 cd ~/Software
 git clone --depth=1 https://github.com/JavanXD/ya-pihole-list.git ya-pihole-list
@@ -142,6 +180,15 @@ Add the following line, replacing the path as above:
 15 5 * * * sudo /home/{YOUR-USERNAME}/Software/ya-pihole-list/adlists-updater.sh 1 >/dev/null
 ```
 
+</details>
+
+<br>
+
+## Auto update blocklists
+
+> TO BE FIXED
+> Check: https://github.com/jacklul/pihole-updatelists
+
 <br>
 
 ## Debugging
@@ -163,6 +210,10 @@ tail -f /var/log/pihole.log
 <br>
 
 ## Allow/Block lists
+
+List of common whitelist URLs: [https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212](https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212)
+
+<br>
 
 For bulk addition, you can use:
 ``` bash

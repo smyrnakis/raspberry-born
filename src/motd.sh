@@ -140,7 +140,8 @@ labelSD="$borderBar  $(color $statsLabelColor "Home space....:") $labelSD$border
 
 # https://stackoverflow.com/questions/8334266/how-to-make-special-characters-in-a-bash-script-for-conky?noredirect=1&lq=1
 CEL=$'\xc2\xb0'C
-labelTemp="$(extend "$(/opt/vc/bin/vcgencmd measure_temp | cut -c "6-9")${CEL}")"
+labelTemp="$(extend "$(/usr/bin/vcgencmd measure_temp | cut -c "6-9")${CEL}")"
+#labelTemp="$(extend "$(/opt/vc/bin/vcgencmd measure_temp | cut -c "6-9")${CEL}")"
 #labelTemp="$(extend "$(/opt/vc/bin/vcgencmd measure_temp | cut -c "6-9")ºC")"
 labelTemp="$borderBar  $(color $statsLabelColor "CPU temp......:") $labelTemp$borderBar"
 
