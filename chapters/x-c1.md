@@ -56,6 +56,16 @@ vim ~/.zshrc
 alias xoff="sudo /usr/local/bin/x-c1-softsd.sh"
 ```
 
+**Important:** make sure that `Python3` is used in the `rc.local` file when calling the `fan.py` script:
+```bash
+sudo vim /etc/rc.local
+```
+
+Check that `Python3` is used:
+```bash
+python3 /home/{YOUR-USERNAME}/Software/x-c1/fan.py &
+```
+
 Finish the installation by rebooting the Raspberry Pi:
 ``` bash
 sudo reboot
@@ -80,6 +90,17 @@ To shut down from the terminal, use the `xoff` command.
 
 <br>
 
+### Update `RPi.GPIO`
+
+```bash
+sudo pip install --upgrade RPi.GPIO
+
+# for Python3
+sudo pip3 install --upgrade RPi.GPIO
+```
+
+<br>
+
 ### Fan / temperature control
 
 If you want to adjust the fan's thresholds, you need to edit the `$HOME/Software/x-c1/fan.py` file.
@@ -98,3 +119,18 @@ A PWM of value of `0` means stopped fan.<p>
 A PWM of value of `100` means fan works full speed.
 
 <br>
+
+An updated script with reduced duty cycle at night, syslog reporting and newer Python functions is available here: [fan.py](https://github.com/smyrnakis/raspberry-born/blob/main/src/fan.py)
+
+It is recommended that you replace the code in `$HOME/Software/x-c1/fan.py` with the above one.
+
+
+<br>
+
+### Debugging
+
+To see the generated logs of `fan.py`, use the following command:
+
+``` bash
+sudo cat /var/log/syslog | grep 'fan.py'
+```
