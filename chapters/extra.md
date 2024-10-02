@@ -7,16 +7,21 @@
 
 ``` bash
 # main & system logs
+sudo journalctl
+sudo journalctl -f
+
 sudo tail /var/log/syslog
 sudo tail /var/log/messages
 
 # security
+sudo journalctl -u ssh
 sudo tail /var/log/auth.log
 
 # unattended-upgrade
 sudo cat /var/log/syslog | grep unattended-upgrade
 
 # msmtp email logs
+sudo journalctl -u msmtp
 sudo cat /var/log/syslog | grep msmtp
 sudo tail /var/log/mail.log
 
