@@ -277,6 +277,19 @@ Sat Jan  9 04:30:00 EET 2021
 
 ### Successful / failed SSH logins
 ``` bash
+sudo journalctl | grep 'Accepted publickey'
+```
+``` bash
+sudo journalctl | grep 'Failed publickey'
+```
+``` bash
+sudo journalctl | grep 'Accepted password'
+```
+``` bash
+sudo journalctl | grep 'Failed password'
+```
+
+``` bash
 cat /var/log/auth.log | grep 'Accepted password'
 
 cat /var/log/auth.log | grep 'Failed password'
