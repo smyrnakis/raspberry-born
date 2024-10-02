@@ -51,10 +51,14 @@ sudo service ssh restart
 Install and prepare the config file:
 ``` bash
 sudo apt-get install fail2ban
+```
 
+``` bash
 sudo cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+```
 
-sudo nano /etc/fail2ban/jail.local
+``` bash
+sudo vim /etc/fail2ban/jail.local
 ```
 
 Change the values `bantime`, `findtime` & `maxretry` :
@@ -65,6 +69,28 @@ findtime  = 15m
 maxretry = 3
 ```
 
+Save and restart the service:
+
+``` bash
+sudo systemctl start fail2ban
+```
+
+``` bash
+sudo systemctl enable fail2ban
+```
+
+Restart service:
+
+``` bash
+sudo service fail2ban restart
+```
+
+Edit again the file to enable `sshd` monitoring:
+
+``` bash
+sudo vim /etc/fail2ban/jail.local
+```
+
 Enable it by changing the value of `enabled` under the `[sshd]`:
 
 ``` bash
@@ -73,10 +99,20 @@ filter = sshd
 banaction = iptables-multiport
 ```
 
-Restart service:
+To ensure that correct version (including IV V6) of *iptables* is installed, run:
 
 ``` bash
-sudo service fail2ban restart
+sudo apt-get install iptables
+```
+
+After any change in *fail2ban* config, restart it and check it's status:
+
+``` bash
+sudo systemctl restart fail2ban
+```
+
+``` bash
+sudo fail2ban-client status
 ```
 
 To check if *iptables* is running correctly:
@@ -205,6 +241,7 @@ ip6tables-save > /etc/iptables/rules.v6
 - `/var/log/syslog` : main log for all services
 - `/var/log/messages` : all systems log
 - `/var/log/auth.log` : authentication attempts
+- `sudo journalctl -u ssh` : authentication attempts
 - `/var/log/mail.log` : mail server
 - `/var/log/pihole.log` : Pi-hole log
 - `/var/log/openvpn.log` : OpenVPN log
