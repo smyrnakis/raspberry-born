@@ -66,7 +66,12 @@ You can print debugging messages in the console by adding the `--debug` command:
 echo -e "Subject: Test Mail\r\n\r\nThis is a test mail." | msmtp --debug --from=default --syslog=on -t {RECIPIENT-EMAIL}
 ```
 
-The command `--syslog=on` enables logging on `syslog` which you can examine with:
+The command `--syslog=on` enables logging on `syslog` (or `journalctl`) which you can examine with:
+
+```bash
+sudo journalctl | grep msmtp
+```
+
 ``` bash
 sudo cat /var/log/syslog | grep msmtp
 ```
