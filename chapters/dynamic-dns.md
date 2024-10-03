@@ -171,8 +171,14 @@ Add the following line before the `exit 0` line:
 /usr/local/bin/noip2
 ```
 
-#### Configure autostart at system boot
+#### Configure autostart at system boot (alternative way)
 
 Instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/autostart.md).
+
+#### Check `noip2` logs
+
+``` bash
+sudo journalctl | grep 'noip2'
+```
 
 <br>
