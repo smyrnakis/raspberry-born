@@ -160,6 +160,17 @@ sudo /usr/local/bin/noip2
 sudo noip2 -S
 ```
 
+#### Auto-start `noip2` on system boot
+``` bash
+sudo vim /etc/rc.local
+```
+
+Add the following line before the `exit 0` line:
+
+``` bash
+/usr/local/bin/noip2
+```
+
 #### Configure autostart at system boot
 
 Instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/autostart.md).
