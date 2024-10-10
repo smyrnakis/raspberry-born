@@ -33,7 +33,7 @@ chmod 755 openvpn-install.sh
 
 ### Getting installation script ready
 
-*The above script (version of 13/12/2021, including the customisations) is also available [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/openvpn-install.sh).*
+*The above script (version of 10/10/2024, including the customisations) is also available [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/openvpn-install.sh).*
 
 *It is recommended that you always get the newest version and follow the above steps before a fresh OpenVPN installation.*
 
@@ -69,14 +69,14 @@ echo
 
 #### *easy-rsa* version
 The installation script will download `easy-rsa` from the official OpenVPN's [Github](https://github.com/OpenVPN/easy-rsa/releases/) repo.
-It's recommended that you check the latest version in the repo is the same with the one the script will download *(`v3.1.2` as of 12/3/2023)*.
+It's recommended that you check the latest version in the repo is the same with the one the script will download *(`v3.2.1` as of 10/10/2024)*.
 ``` bash
-# line 247
-easy_rsa_url='https://github.com/OpenVPN/easy-rsa/releases/download/v3.1.2/EasyRSA-3.1.2.tgz'
+# line 248
+easy_rsa_url='https://github.com/OpenVPN/easy-rsa/releases/download/v3.2.1/EasyRSA-3.2.1.tgz'
 ```
 
 #### easy-rsa *KEY_SIZE*
-Add `EASYRSA_KEY_SIZE` var, after line `251`:
+Add `EASYRSA_KEY_SIZE` var, after line `252`:
 ``` bash
 chown -R root:root /etc/openvpn/server/easy-rsa/
 cd /etc/openvpn/server/easy-rsa/
@@ -92,7 +92,7 @@ echo 'set_var EASYRSA_REQ_EMAIL  {YOUR-EMAIL}' >> vars
 ```
 
 #### Client's password
-Remove the `nopass` argument from client's keys creation in line `259`:
+Remove the `nopass` argument from client's keys creation in line `260`:
 
 ``` bash
 ./easyrsa --batch build-ca nopass
@@ -105,12 +105,12 @@ EASYRSA_CERT_EXPIRE=3650 ./easyrsa build-client-full "$client"
 Doing this, the script will ask you to set client's certificate password which will be needed in order to connect to the server, improving the security of the configuration.
 
 #### DH parameters
-It is recommended to use `ffdhe4096` rather the `ffdhe2048` in order to increase the security. In line `270` there are the *pre-defined **ffdhe2048*** parameters.
+It is recommended to use `ffdhe4096` rather the `ffdhe2048` in order to increase the security. In line `271` there are the *pre-defined **ffdhe2048*** parameters.
 
 Replace them with the *pre-defined **ffdhe4096*** available [HERE](https://github.com/internetstandards/dhe_groups/blob/master/ffdhe4096.pem) *(NL Internet Standards)* and also [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/ffdhe4096.pem) *(re-uploaded on my repo)*.
 
 ``` bash
-# line 270
+# line 271
 
 # <<< PART TO BE REPLACED STARTS HERE >>>
 echo '-----BEGIN DH PARAMETERS-----
@@ -142,10 +142,10 @@ zAqCkc3OyX3Pjsm1Wn+IpGtNtahR9EGC4caKAH5eZV9q//////////8CAQI=
 *More info: [IETF RFC 7919](https://tools.ietf.org/html/rfc7919)*
 
 #### TLS version
-To strengthen against downgrade attack on the TLS protocol level, add in a new line the `tls-version-min 1.2` on both *server* and *client* configuration (approx lines: `293` & `441` respectively).
+To strengthen against downgrade attack on the TLS protocol level, add in a new line the `tls-version-min 1.2` on both *server* and *client* configuration (approx lines: `289` & `432` respectively).
 
 ``` bash
-# line 293
+# line 289
 ca ca.crt
 cert server.crt
 key server.key
@@ -159,7 +159,7 @@ topology subnet
 
 # [...]
 
-# line 441
+# line 432
 nobind
 persist-key
 persist-tun
