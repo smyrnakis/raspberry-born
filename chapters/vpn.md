@@ -183,7 +183,7 @@ log-append /var/log/openvpn.log
 ```
 
 #### Client configuration
-Replace `$port` variable with `$extport` in line `439`:
+Replace `$port` variable with `$extport` in line `433`:
 
 ``` bash
 dev tun
@@ -194,12 +194,12 @@ remote $ip $extport
 ```
 
 #### Client's password (when adding new client)
-Remove the `nopass` argument from client's keys creation in line `485`:
+Remove the `nopass` argument from client's keys creation in line `478`:
 
 ``` bash
 cd /etc/openvpn/server/easy-rsa/
 # <<< PART TO BE EDITED STARTS HERE >>>
-EASYRSA_CERT_EXPIRE=3650 ./easyrsa build-client-full "$client"
+./easyrsa --batch --days=3650 build-client-full "$client"
 # <<< PART TO BE EDITED FINISHES HERE >>>
 ```
 
@@ -290,8 +290,8 @@ cp /root/MyMobile.ovpn /home/{YOUR-USERNAME}/MyMobile.ovpn
 
 For long term storage, you can create a directory under `/etc/openvpn/client/` and name it after the current date.
 ``` bash
-mkdir /etc/openvpn/client/20230312
-mv /root/*.ovpn /etc/openvpn/client/20230312/
+mkdir /etc/openvpn/client/20241231
+mv /root/*.ovpn /etc/openvpn/client/20241231/
 ```
 
 <br>
@@ -489,7 +489,7 @@ sudo chmod 744 OpenVPN-email.sh
 
 Add the following code into the file : [OpenVPN-email.sh](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/OpenVPN-email.sh)
 ``` bash
-sudo nano OpenVPN-email.sh
+sudo vim OpenVPN-email.sh
 ```
 
 Add your email in line 13:
@@ -525,8 +525,11 @@ The script will email you the names and source IPs of the currently connected cl
 To verify that the script is running, especially after a reboot, execute the following command:
 ``` bash
 ps aux | grep "OpenVPN-email.sh"
+```
 
-root     1917605  0.0  0.0   6956  1724 ?        S    00:45   0:00 bash /home/tolis/Software/OpenVPN/OpenVPN-email.sh
+And you should have an output like the following:
+``` bash
+root     1917605  0.0  0.0   6956  1724 ?        S    00:45   0:00 bash /home/{USERNAME}/Software/OpenVPN/OpenVPN-email.sh
 ```
 
 ### Indicator LED
