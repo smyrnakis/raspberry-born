@@ -245,6 +245,24 @@ sudo pihole -w s.youtube.com
 sudo pihole -w redirector.gvt1.com
 ```
 
+### Whitelisted Domains
+
+As of 02.2025, the following domains are in my whitelist:
+
+```
+spclient.wg.spotify.com
+s.youtube.com
+lnkd.in
+analytics.google.com
+analytics.pinterest.com
+```
+
+And the following is in the whitelist, but disabled:
+```
+marketingplatform.google.com
+```
+
+
 ### Discourse thread
 
 In case of issues, consider whitelisting the domains described here.
