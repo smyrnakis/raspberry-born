@@ -44,35 +44,16 @@ Replace user `pi` or add a new line if not there (replace *`{newusername}`* with
 
 ### Add SSH keys
 
-Generate keys:
+Generate a different SSH key for each laptop. Keep private keys only on the laptop and add only the public keys to the Raspberry Pi.
 
-##### Windows
+Follow the detailed instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/ssh-keys.md) for:
 
-Use [PuTTY](https://www.putty.org/) *"PuTTY Key Generator"*
+- Windows Terminal
+- WinSCP
+- adding the laptop key to each Raspberry Pi
+- testing and removing laptop keys
 
-- Use both *Save private key* and *Conversions* --> *Export OpenSSH key*.
-
-
-##### Mac
-
-``` bash
-# TO_BE_FIXED
-```
-
-Import **public** key(s):
-``` bash
-cd
-mkdir .ssh
-touch .ssh/authorized_keys
-echo "ssh-rsa....." >> .ssh/authorized_keys
-chmod 700 .ssh
-chmod 600 .ssh/authorized_keys
-```
-
-**Before closing** the connection, verify on a new terminal that the key authentication works fine!
-``` bash
-ssh -i ~/.ssh/{ROOT-KEY} root@192.168.178.31
-```
+**Before closing** the existing connection, verify on a new terminal that the new key authentication works fine!
 
 Logout `root` user:
 ``` bash

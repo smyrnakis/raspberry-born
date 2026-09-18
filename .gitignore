@@ -1,4 +1,12 @@
 .DS_Store
+
+# Local SSH private keys
+.ssh/
+*.ppk
+id_ed25519*
+id_ecdsa*
+id_rsa*
+
 src/email-exim4.sh
 src/hosts_ATH
 src/hosts_GVA
