@@ -1,0 +1,29 @@
+# Forward only between the configured VPN and LAN paths.
+# This table does not set a drop policy for unrelated forwarded traffic.
+table inet vpn_site_forward {
+    chain forward {
+        type filter hook forward priority 10; policy accept;
+
+        iifname "@VPN_INTERFACE@" ct state invalid counter drop
+        oifname "@VPN_INTERFACE@" ct state invalid counter drop
+
+        iifname "@VPN_INTERFACE@" oifname "@LAN_INTERFACE@" ip saddr @VPN_SUBNET@ ip daddr @LAN_SUBNET@ ct state new,established,related counter accept
+
+        iifname "@LAN_INTERFACE@" oifname "@VPN_INTERFACE@" ip saddr @LAN_SUBNET@ ip daddr @VPN_SUBNET@ ct state established,related counter accept
+
+        # Do not use this Pi as a gateway from the VPN to other networks, and
+        # do not allow LAN devices to initiate new VPN connections.
+        iifname "@VPN_INTERFACE@" counter drop
+        oifname "@VPN_INTERFACE@" counter drop
+    }
+}
+
+# The remote LAN gateway has no return route for the VPN subnet. Masquerade
+# only VPN traffic destined for the configured LAN.
+table ip vpn_site_nat {
+    chain postrouting {
+        type nat hook postrouting priority srcnat; policy accept;
+
+        oifname "@LAN_INTERFACE@" ip saddr @VPN_SUBNET@ ip daddr @LAN_SUBNET@ counter masquerade
+    }
+}

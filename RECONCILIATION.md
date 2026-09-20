@@ -130,6 +130,26 @@ Approved replacement structure:
 - Keep the private ranges `192.168.178.0/24`, `192.168.1.0/24` and `10.8.0.0/24`, plus Raspi3-02 VPN address `10.8.0.20`.
 - Do not publish dynamic device addresses, public endpoints, DDNS names or VPN profiles.
 
+Verified deployed source comparison:
+
+- Authoritative source bundle: the final `raspi3-02-watchdog` directory under the Raspi3-02 OneDrive project directory. Live `.ovpn` profiles, private keys and the `old.VPN` directory are explicitly excluded.
+- The deployed Crete router uses nftables, not iptables, and persists `net.ipv4.ip_forward=1` through `/etc/sysctl.d/`.
+- The installer backs up `/etc/nftables.conf`, validates the complete ruleset with `nft -c`, applies the sysctl setting, enables/restarts nftables and rolls back on failure.
+- The rules allow connections initiated from authenticated VPN clients in `10.8.0.0/24` to the full Crete LAN `192.168.1.0/24`, permit established return traffic and apply masquerading only to that VPN-to-LAN path.
+- The tested deployment keeps ordinary Crete internet traffic on Starlink and prevents Crete LAN devices from initiating new connections toward the VPN through Raspi3-02.
+- The live Athens audit confirmed the server route, pushed Crete LAN route, CCD static address and `iroute` ownership for client `401-Raspi3-02`.
+- End-to-end routing and application access were verified from a Geneva VPN client through Athens and Raspi3-02 to the Crete camera. The final controlled reboot restored OpenVPN, nftables and LAN reachability.
+- The deployed router files are Raspi3-02-specific and assume an otherwise empty/default Crete nftables configuration. Repository assets must be generalized and must not silently take ownership of an existing firewall.
+
+Implementation status:
+
+- Replaced the remote guide with a tested case study that separates read-only audit, Athens route/CCD changes, client review, Crete nftables application, verification and rollback.
+- Added configurable assets under `src/vpn/site-to-site/` with an ignored local `site.conf`, read-only `--check`, explicit `--apply`, timestamped backup and `--rollback` modes.
+- The generalized forwarding chain uses an accept policy and filters only traffic entering or leaving the configured VPN interface, avoiding ownership of unrelated forwarding traffic.
+- Added scoped Git attributes so executable/configuration assets keep LF line endings on Windows checkouts.
+- Bash parsing, Markdown fences, relative links, whitespace and prohibited-identifier scans passed locally.
+- Native nftables validation cannot run on the Windows laptop. `sudo ./install-router.sh --check site.conf` on a Raspberry Pi remains mandatory before any application.
+
 ### `2086acc` SSH documentation
 
 Status: reviewed and reconciled with the approved targeted edits in a focused branch commit.
@@ -142,7 +162,7 @@ Approved decisions:
 
 Required edits to the SSH guide:
 
-- Clearly label commands for the Windows laptop versus Debian Raspberry Pis.
+- Clearly label commands for the Windows laptop versus Raspberry Pis.
 - Use Vim for editing on Raspberry Pis and VS Code for editing the Windows SSH configuration.
 - Keep one passphrase-protected Ed25519 key per laptop, reusable across the owner's Pis; never copy a private key to a Pi, cloud storage or Git.
 - Keep host-key fingerprint verification and `IdentitiesOnly yes`; never disable host-key checking.
@@ -291,6 +311,7 @@ Retain for staged review:
 - Normalize line endings and script executable modes deliberately.
 - Review copied third-party files, licensing and update strategy.
 - Replace direct SMTP notification scripts gradually with the durable queue.
+- Audit the general OpenVPN server setup at the end of reconciliation. Compare `chapters/vpn.md`, the automated `src/vpn/openvpn-install.sh` workflow and the archived fully manual method; decide which are current, safe and maintainable without combining them blindly.
 
 ## Required backup point
 
@@ -339,10 +360,15 @@ Status: completed and verified.
 - Replaced the dated Pi-hole snapshot with an explained service-compatibility table, a machine-readable allowlist and preview, application, verification and rollback commands.
 - Applied the approved SSH guide corrections: explicit Windows/Debian labels, Vim and VS Code conventions, generic usernames, user-key publication rules, and current WinSCP agent or `.ppk` workflows.
 - Reviewed and approved the focused SSH documentation diff for commit.
+- Completed the read-only comparison between the remote Athens-Crete guide, the final deployed Raspi3-02 routing bundle and the recorded live routing audit. No VPN file was changed or imported.
+- User approved the generalized site-to-site asset design and requested an end-stage audit of both the automated and fully manual OpenVPN server setup methods.
+- Implemented the generalized site-to-site assets and replacement case-study chapter. No Raspberry Pi was contacted or changed.
+- User approved the site-to-site result, requested standalone wording without references to superseded guides, and established "Raspberry Pi" as the normal prose term unless the operating-system distinction matters.
+- Final local validation passed for the approved VPN files; native nftables validation remains an explicit Raspberry Pi pre-deployment check.
 
 ## Next controlled chunk
 
-1. Inventory the verified deployed Athens-Crete VPN source files and compare them with `chapters/vpn_crete-athens.md`.
-2. Identify the exact reusable assets for `src/vpn/site-to-site/` and the case-study chapter structure.
-3. Perform no VPN documentation or script edits until that comparison is reported.
-4. Do not update local `main` or push anything.
+1. Reconcile the README navigation using the approved local and remote choices.
+2. Retain the UPS and NASPi entries, add the SSH and Athens-Crete VPN guides, and omit deferred Mosquitto and hardware-watchdog entries.
+3. Review the resulting README diff before commit.
+4. Do not update local `main`, deploy to a Raspberry Pi or push anything.

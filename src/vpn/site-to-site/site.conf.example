@@ -1,0 +1,5 @@
+# Tested Athens-Crete values. Copy this file to site.conf and review it.
+VPN_INTERFACE=tun0
+LAN_INTERFACE=eth0
+VPN_SUBNET=10.8.0.0/24
+LAN_SUBNET=192.168.1.0/24
