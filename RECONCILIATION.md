@@ -132,7 +132,7 @@ Approved replacement structure:
 
 ### `2086acc` SSH documentation
 
-Status: reviewed and approved for reconciliation with targeted edits.
+Status: reviewed and reconciled with the approved targeted edits in a focused branch commit.
 
 Approved decisions:
 
@@ -337,10 +337,12 @@ Status: completed and verified.
 - Rebased `codex/reconcile-2026-09-19` successfully onto `origin/main`. Local `main` and GitHub were not changed.
 - Refined the Pi-hole decision: retain the useful allowlist knowledge as an explained, machine-readable service-compatibility list rather than deleting it entirely.
 - Replaced the dated Pi-hole snapshot with an explained service-compatibility table, a machine-readable allowlist and preview, application, verification and rollback commands.
+- Applied the approved SSH guide corrections: explicit Windows/Debian labels, Vim and VS Code conventions, generic usernames, user-key publication rules, and current WinSCP agent or `.ppk` workflows.
+- Reviewed and approved the focused SSH documentation diff for commit.
 
 ## Next controlled chunk
 
-1. Reconcile the SSH documentation from remote commit `2086acc` using the approved targeted edits.
-2. Review the exact SSH diff before committing it.
-3. Keep the larger VPN replacement for a separate later commit.
+1. Inventory the verified deployed Athens-Crete VPN source files and compare them with `chapters/vpn_crete-athens.md`.
+2. Identify the exact reusable assets for `src/vpn/site-to-site/` and the case-study chapter structure.
+3. Perform no VPN documentation or script edits until that comparison is reported.
 4. Do not update local `main` or push anything.

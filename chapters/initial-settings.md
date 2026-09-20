@@ -46,7 +46,7 @@ Replace user `pi` or add a new line if not there (replace *`{newusername}`* with
 
 Generate a different SSH key for each laptop. Keep private keys only on the laptop and add only the public keys to the Raspberry Pi.
 
-Follow the detailed instructions [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/ssh-keys.md) for:
+Follow the detailed [SSH key guide](ssh-keys.md) for:
 
 - Windows Terminal
 - WinSCP
@@ -62,6 +62,6 @@ logout
 
 <br>
 
-*Repeat **["Add SSH keys"](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/initial-settings.md#add-ssh-keys)** for main user.*
+Repeat [Add the public key to a Raspberry Pi](ssh-keys.md#add-the-public-key-to-a-raspberry-pi) for the main user.
 
 <br>
