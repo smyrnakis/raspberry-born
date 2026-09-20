@@ -211,63 +211,64 @@ tail -f /var/log/pihole.log
 
 ## Allow/Block lists
 
-List of common whitelist URLs: [https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212](https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212)
+Pi-hole supports exact allowlist entries through `pihole allow`. An allowlist should contain only domains that fix a verified problem. Adding broad analytics or advertising domains without a specific reason can weaken blocking and privacy.
 
-<br>
+The repository includes a tested service-compatibility list at [`src/pihole/allowlist-service-compatibility.txt`](../src/pihole/allowlist-service-compatibility.txt). These entries were required with the blocklists used on the owner's systems. Other installations may need only some of them.
 
-For bulk addition, you can use:
-``` bash
-!#/bin/bash
+| Domain | Observed reason |
+| --- | --- |
+| `spclient.wg.spotify.com` | Spotify did not work correctly. |
+| `s.youtube.com` | YouTube watched history did not update. |
+| `lnkd.in` | LinkedIn shortened links were blocked. |
+| `analytics.google.com` | A required metrics dashboard did not load correctly. |
+| `analytics.pinterest.com` | A required Pinterest metrics dashboard did not load correctly. |
 
-pihole -w $(tr ‘\n’ ’ ’ < input_filename)
-# https://discourse.pi-hole.net/t/add-comments-to-domains-on-the-cli/28556/9
+New entries apply to Pi-hole's Default Group unless their group assignments are changed in the web interface.
+
+### Review the maintained list
+
+Run from the repository root. This command is read-only:
+
+```bash
+grep -Ev '^[[:space:]]*(#|$)' src/pihole/allowlist-service-compatibility.txt
 ```
 
-### Spotify
-``` bash
-sudo pihole -w spclient.wg.spotify.com
+### Apply the maintained list
+
+Review the output above before continuing. The following command changes the Pi-hole allowlist:
+
+```bash
+grep -Ev '^[[:space:]]*(#|$)' \
+  src/pihole/allowlist-service-compatibility.txt \
+  | xargs -r sudo pihole allow
 ```
 
-More on Spotify: [https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60](https://gist.github.com/captainhook/9eb4132d6e58888e37c6bc6c73dd4e60)
+### Verify the entries
 
-### YouTube
-``` bash
-# to enable 'watched' history
-sudo pihole -w s.youtube.com
+```bash
+while IFS= read -r domain; do
+  pihole query "${domain}"
+done < <(grep -Ev '^[[:space:]]*(#|$)' \
+  src/pihole/allowlist-service-compatibility.txt)
 ```
 
-### WINDVision
+After applying the list, test the affected services from a client that uses this Pi-hole for DNS.
 
-> Not clear if needed! Under investigation...
+### Roll back the maintained list
 
-``` bash
-# to enable WINDVision system updates
-sudo pihole -w redirector.gvt1.com
+This removes only the domains in the maintained file from the allowlist:
+
+```bash
+grep -Ev '^[[:space:]]*(#|$)' \
+  src/pihole/allowlist-service-compatibility.txt \
+  | xargs -r sudo pihole allow remove
 ```
 
-### Whitelisted Domains
+### Additional troubleshooting candidate
 
-As of 02.2025, the following domains are in my whitelist:
+`redirector.gvt1.com` was previously considered for WINDVision system updates but was never confirmed as required. It is not included in the maintained list. Add it only after Pi-hole query logs demonstrate that blocking it causes the update failure.
 
-```
-spclient.wg.spotify.com
-s.youtube.com
-lnkd.in
-analytics.google.com
-analytics.pinterest.com
-```
-
-And the following is in the whitelist, but disabled:
-```
-marketingplatform.google.com
-```
-
-
-### Discourse thread
-
-In case of issues, consider whitelisting the domains described here.
-
-[https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212/109](https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212/109)
+For more troubleshooting examples, see Pi-hole's [allowlist and denylist documentation](https://docs.pi-hole.net/guides/misc/allowlist-denylist/) and the community's [commonly whitelisted domains discussion](https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212).
 
 <br>
 

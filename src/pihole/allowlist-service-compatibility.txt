@@ -1,0 +1,15 @@
+# Spotify playback
+spclient.wg.spotify.com
+
+# YouTube watched-history functionality
+s.youtube.com
+
+# LinkedIn shortened links
+lnkd.in
+
+# Metrics dashboards
+analytics.google.com
+analytics.pinterest.com
+
+# Previously tested but not currently applied:
+# marketingplatform.google.com

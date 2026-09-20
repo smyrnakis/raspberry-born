@@ -37,8 +37,8 @@ Audit date: 2026-09-19
 
 As of 2026-09-20:
 
-- Reconciliation branch: `codex/reconcile-2026-09-19` at `333627b`.
-- The branch is based on `origin/main` at `2086acc` and is one planning commit ahead.
+- Reconciliation branch: `codex/reconcile-2026-09-19`; its unpublished checkpoint hash may change when approved ledger updates are amended.
+- The branch is based on `origin/main` at `2086acc` and contains the planning checkpoint plus focused reconciliation commits.
 - The three reviewed remote commits are now present in the branch history.
 - Local `main` remains unchanged at `e88de61`.
 - Nothing has been pushed.
@@ -83,15 +83,16 @@ Never import the `old.VPN` directory or any `.ovpn` profile.
 
 ### `20fcd5f` pihole whitelist
 
-Status: reviewed; preserve the commit in remote history but exclude its 18-line personal allowlist snapshot from the final guide.
+Status: reviewed; preserve the commit in remote history and replace its unexplained dated snapshot with a maintained, documented service-compatibility allowlist.
 
 Decision rationale:
 
-- Spotify and YouTube entries duplicate examples already present in the chapter.
-- Analytics domains are listed without explaining the breakage they solve and may weaken blocking or privacy.
-- A disabled entry is not useful operational guidance.
-- The dated February 2025 snapshot will become stale.
-- The existing Pi-hole section should later be modernized around current `allowlist` terminology and the `pihole allow` command, with symptom-based examples and removal instructions.
+- The five active domains represent operational knowledge needed to reproduce the owner's working installations.
+- Each active entry must state the observed service failure it corrects so other users can choose only what they need.
+- Store the active domains in `src/pihole/allowlist-service-compatibility.txt` so new installations can apply the reviewed list repeatably.
+- Keep `marketingplatform.google.com` only as a commented historical candidate because it was disabled, not as an active entry.
+- Use current `pihole allow` terminology and provide read-only preview, application, verification and rollback commands.
+- Explain that the list is tested with the owner's blocklists but is not a universal recommendation.
 
 ### `bd5a035` Athens-Crete VPN guide
 
@@ -334,10 +335,12 @@ Status: completed and verified.
 - Verified that the external backup copies of `README.md` and `chapters/auto-updates.md` matched their working copies byte-for-byte.
 - Restored those two tracked working files to the local baseline; all untracked and ignored files were left untouched.
 - Rebased `codex/reconcile-2026-09-19` successfully onto `origin/main`. Local `main` and GitHub were not changed.
+- Refined the Pi-hole decision: retain the useful allowlist knowledge as an explained, machine-readable service-compatibility list rather than deleting it entirely.
+- Replaced the dated Pi-hole snapshot with an explained service-compatibility table, a machine-readable allowlist and preview, application, verification and rollback commands.
 
 ## Next controlled chunk
 
-1. Apply the approved correction for remote commit `20fcd5f` by removing its dated personal allowlist snapshot while retaining useful general Pi-hole guidance.
-2. Review the exact small diff before committing it.
-3. Keep the VPN and SSH corrections for separate later commits.
+1. Reconcile the SSH documentation from remote commit `2086acc` using the approved targeted edits.
+2. Review the exact SSH diff before committing it.
+3. Keep the larger VPN replacement for a separate later commit.
 4. Do not update local `main` or push anything.
