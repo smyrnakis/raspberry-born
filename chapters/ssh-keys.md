@@ -60,7 +60,7 @@ On the **Windows laptop**, display and copy the complete public key:
 Get-Content -Raw "$keyPath.pub"
 ```
 
-Log in using an existing password or trusted key. On the **Debian Raspberry Pi**, prepare `authorized_keys`:
+Log in using an existing password or trusted key. On the **Raspberry Pi**, prepare `authorized_keys`:
 
 ``` bash
 install -d -m 700 ~/.ssh

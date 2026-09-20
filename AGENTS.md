@@ -12,7 +12,8 @@ Write documentation as a step-by-step guide tailored to the owner's environment 
 - State the tested or assumed Debian release and Raspberry Pi model when behavior may differ.
 - Prefer `vim` in Debian commands and documentation.
 - The Windows administration laptop uses PowerShell and VS Code.
-- Clearly label commands as either Windows laptop commands or Debian Raspberry Pi commands.
+- Clearly label commands as either Windows laptop commands or Raspberry Pi commands.
+- Use "Raspberry Pi" in ordinary prose. Mention Debian or Raspberry Pi OS only when the operating-system distinction affects the instructions.
 
 ## Public repository information policy
 
