@@ -365,10 +365,12 @@ Status: completed and verified.
 - Implemented the generalized site-to-site assets and replacement case-study chapter. No Raspberry Pi was contacted or changed.
 - User approved the site-to-site result, requested standalone wording without references to superseded guides, and established "Raspberry Pi" as the normal prose term unless the operating-system distinction matters.
 - Final local validation passed for the approved VPN files; native nftables validation remains an explicit Raspberry Pi pre-deployment check.
+- Committed the approved generalized Athens-Crete VPN case study and nftables assets in a focused reconciliation commit.
+- Reconciled the README navigation for the tracked Athens-Crete VPN and NASPi guides. The UPS link remains intentionally deferred until the UPS chapter is committed, avoiding a broken link.
 
 ## Next controlled chunk
 
-1. Reconcile the README navigation using the approved local and remote choices.
-2. Retain the UPS and NASPi entries, add the SSH and Athens-Crete VPN guides, and omit deferred Mosquitto and hardware-watchdog entries.
-3. Review the resulting README diff before commit.
-4. Do not update local `main`, deploy to a Raspberry Pi or push anything.
+1. Review and commit the focused README navigation change.
+2. Begin the separate UPS chapter and reusable-script review.
+3. Add the UPS README link only in the same commit that adds the approved chapter.
+4. Keep Mosquitto and hardware-watchdog entries deferred; do not update local `main`, deploy or push.

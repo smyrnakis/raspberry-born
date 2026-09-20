@@ -51,6 +51,8 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 
 [OpenVPN server](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn.md) - install & configure an *OpenVPN* server that can work together with *Pi-hole*
 
+[OpenVPN site-to-site: Athens-Crete](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn_crete-athens.md) - route authenticated VPN clients to the Crete LAN through Raspi3-02
+
 [Pi-hole](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/pihole.md) - install & configure *Pi-hole* ad-blocker (better install *Pi-hole* **after** installing *OpenVPN*)
 
 [SSH keys](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/ssh-keys.md) - use a different SSH key for each laptop with Windows Terminal and WinSCP
@@ -68,6 +70,8 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 <br>
 
 ## Extra
+
+[NASPi](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/naspi.md) - assemble and configure a NASPi enclosure
 
 [Various commands](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/extra.md) - useful commands
 
