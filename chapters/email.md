@@ -1,79 +1,253 @@
-# Send emails from Raspberry Pi
+# Durable email notifications
 
-*Article 1: https://www.mankier.com/1/msmtp*
+This guide configures `msmtp` as the SMTP transport and adds a small, persistent
+local queue for system notifications. A monitoring script writes its message to
+disk before delivery is attempted. If DNS, the network or the SMTP provider is
+unavailable, the dispatcher retries without blocking the monitoring service.
 
-*Article 2: https://wiki.archlinux.org/index.php/Msmtp*
+The queue was developed and tested on Raspi3-02. The repository version uses
+generic names and paths so the same design can be used on any Raspberry Pi.
 
-<br>
+References:
 
-## Install `msmtp`
+- [msmtp manual](https://marlam.de/msmtp/msmtp.html)
+- [systemd timer documentation](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html)
 
-``` bash
-sudo apt-get install msmtp
-```
+## What is stored where
 
-## Configure `msmtp`
+| Path | Purpose |
+| --- | --- |
+| `/etc/msmtprc` | SMTP server and authentication settings |
+| `/etc/msmtp-password` | Optional root-only application password |
+| `/etc/raspi-notify/notify.conf` | Local sender, recipient and display name |
+| `/var/spool/raspi-notify/queue/` | Messages waiting for delivery |
+| `/var/spool/raspi-notify/bad/` | Invalid messages retained for inspection |
+| `/usr/local/sbin/raspi-notify` | Command used by monitoring scripts |
+| `/usr/local/sbin/raspi-notify-dispatcher` | Queue delivery process |
 
-Create a configuration file named `msmtprc`. This file can be located in each user's home folder or in `/etc` if it will be the same configuration for all users.
-``` bash
-# one configuration file on this system
-# since the emails will be send only from the root user,
-# the permissions are set accordingly
+Email addresses and SMTP credentials are local configuration. Do not commit
+`notify.conf`, `/etc/msmtprc`, `/etc/msmtp-password` or copies of those files.
 
-sudo touch /etc/msmtprc
-sudo chmod 640 /etc/msmtprc
-```
+## 1. Inspect the current Raspberry Pi
 
-For *GMAIL* account, add the following and replace `{YOUR-GMAIL}` and `{YOUR-PASSWORD}`.
-Replace also the `{FROM-NAME}` which should be the name appearing on recipients.
-``` bash
-account default
-host smtp.gmail.com
-port 587
-tls on
-tls_starttls on
-tls_trust_file /etc/ssl/certs/ca-certificates.crt
-
-auth login
-user {YOUR-GMAIL}
-password {YOUR-PASSWORD}
-from {FROM-NAME}
-
-account account2
-```
-
-> It is recommended that you create an **Application password** in your Gmail account's *"Security Settings"* and use this password in the `msmtprc` file.
-> 
-> It is possible to avoid typing *clear text* password in the configuration file.
-> More info here: [https://www.mankier.com/1/msmtp#Examples](https://www.mankier.com/1/msmtp#Examples)
-
-
-## Test email
-
-Replace `{RECIPIENT-EMAIL}` with the recipient's email:
-``` bash
-# since the config file is readable only by 'root' user:
-sudo su
-
-echo -e "Subject: Test Mail\r\n\r\nThis is a test mail." | msmtp --from=default --syslog=on -t {RECIPIENT-EMAIL}
-```
-
-## Debugging
-
-You can print debugging messages in the console by adding the `--debug` command:
-
-``` bash
-echo -e "Subject: Test Mail\r\n\r\nThis is a test mail." | msmtp --debug --from=default --syslog=on -t {RECIPIENT-EMAIL}
-```
-
-The command `--syslog=on` enables logging on `syslog` (or `journalctl`) which you can examine with:
+These commands are read-only:
 
 ```bash
-sudo journalctl | grep msmtp
+command -v msmtp || true
+msmtp --version 2>/dev/null || true
+sudo test -r /etc/msmtprc && echo "msmtp configuration exists"
+systemctl status raspi-notify-dispatcher.timer --no-pager 2>/dev/null || true
+sudo find /var/spool/raspi-notify/queue -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null
 ```
 
-``` bash
-sudo cat /var/log/syslog | grep msmtp
+If another mail queue or monitoring framework already exists, review it before
+installing this one.
+
+## 2. Install the SMTP transport
+
+Package installation changes the system. Review the package plan before
+approving it:
+
+```bash
+sudo apt-get update
+apt-get --simulate install msmtp ca-certificates
+sudo apt-get install msmtp ca-certificates
 ```
 
-<br>
+The queue calls `msmtp` directly. The optional `msmtp-mta` package is needed
+only when programs must use a traditional `/usr/sbin/sendmail` interface.
+
+## 3. Configure `msmtp`
+
+The repository includes [`msmtprc.example`](../src/notify/msmtprc.example).
+Copy its structure to `/etc/msmtprc` and adapt the SMTP host, account and sender
+locally:
+
+```bash
+sudo install -o root -g root -m 600 /dev/null /etc/msmtprc
+sudo vim /etc/msmtprc
+```
+
+For a provider that uses an application password, keep it in a separate
+root-only file. Enter the secret directly in Vim; do not place it in a shell
+command, repository file or chat message:
+
+```bash
+sudo install -o root -g root -m 600 /dev/null /etc/msmtp-password
+sudo vim /etc/msmtp-password
+```
+
+The file contains exactly one line: the provider-issued application password
+or access token itself. Do not add `password=`, quotes or surrounding spaces.
+For example, the file structure is:
+
+```text
+replace-this-line-with-the-application-password-or-token
+```
+
+Replace the complete example line. A normal newline at the end of the file is
+fine. The `passwordeval` command reads the file and shell command substitution
+removes that trailing newline before passing the value to `msmtp`.
+
+The example uses `passwordeval` so the password is not embedded in
+`/etc/msmtprc`. The password remains a local secret and must still be protected.
+The upstream msmtp manual also documents desktop keyrings and commands that
+decrypt a password at use time.
+
+Test the SMTP transport before installing the queue. Replace the address only
+in the local command:
+
+```bash
+printf 'Subject: Raspberry Pi msmtp test\n\nDirect transport test.\n' | \
+    sudo msmtp --account=default recipient@example.invalid
+```
+
+Inspect the result without printing the configuration or password:
+
+```bash
+sudo journalctl -t msmtp --no-pager -n 30
+```
+
+Do not use `msmtp --debug` in copied logs or screenshots. Debug output can
+contain account, server and message information.
+
+## 4. Prepare the notification configuration
+
+On the Raspberry Pi, from the repository checkout:
+
+```bash
+cd ~/raspberry-born/src/notify
+cp notify.conf.example notify.conf
+vim notify.conf
+```
+
+`notify.conf` is ignored by Git. Keep one recipient per installation and use a
+descriptive sender name such as the Raspberry Pi hostname.
+
+## 5. Validate, apply and test
+
+The default installer mode is read-only. It validates dependencies, scripts,
+configuration and systemd units, then prints the files it would install:
+
+```bash
+sudo ./install-notify.sh --check
+```
+
+Review that output. Applying creates a timestamped backup, installs the queue
+and reloads systemd metadata. It does not enable the retry timer:
+
+```bash
+sudo ./install-notify.sh --apply
+```
+
+Queue a test message:
+
+```bash
+printf 'Durable notification queue test.\n' | \
+    sudo /usr/local/sbin/raspi-notify "[$(hostname --short)] Notification test"
+```
+
+Then verify the delivery service and queue:
+
+```bash
+sudo systemctl status raspi-notify-dispatcher.service --no-pager
+sudo journalctl -t raspi-notify-dispatcher --no-pager -n 30
+sudo find /var/spool/raspi-notify/queue -mindepth 1 -maxdepth 1 -type d -printf '%f\n'
+sudo find /var/spool/raspi-notify/bad -mindepth 1 -maxdepth 1 -type d -printf '%f\n'
+```
+
+Expected results:
+
+| Command | Successful result |
+| --- | --- |
+| `systemctl status` | The oneshot service shows its latest run as successful. It normally returns to `inactive (dead)` after delivering the message; it is not intended to remain running. |
+| `journalctl` | Contains `Delivered notification:` followed by the test subject. A delivery failure instead records a retry and leaves the message queued. |
+| `find .../queue` | No output after successful delivery. A directory named `msg-*` or `key-*` means a message is still waiting or backing off before another attempt. |
+| `find .../bad` | No output. Any listed directory is a malformed queue entry that was quarantined rather than discarded. |
+
+Confirm the service exit result directly when `systemctl status` shows it as
+inactive:
+
+```bash
+sudo systemctl show raspi-notify-dispatcher.service \
+    --property=ActiveState \
+    --property=SubState \
+    --property=Result \
+    --property=ExecMainStatus
+```
+
+After a successful completed run, expect `ActiveState=inactive`,
+`SubState=dead`, `Result=success` and `ExecMainStatus=0`.
+
+Enable the one-minute retry timer only after the direct transport and queue
+tests pass:
+
+```bash
+sudo systemctl enable --now raspi-notify-dispatcher.timer
+systemctl is-enabled raspi-notify-dispatcher.timer
+systemctl is-active raspi-notify-dispatcher.timer
+systemctl list-timers raspi-notify-dispatcher.timer --no-pager
+```
+
+## 6. Use the queue from another script
+
+Send the message body on standard input and pass the subject as the final
+argument:
+
+```bash
+printf '%s\n' "Service check failed." | \
+    /usr/local/sbin/raspi-notify "[$(hostname --short)] Service alert"
+```
+
+The caller must run as root because the queue is root-only. Use `--event-time`
+when the event happened earlier than the enqueue operation:
+
+```bash
+printf '%s\n' "Network access recovered." | \
+    /usr/local/sbin/raspi-notify \
+        --event-time "2026-09-20T12:00:00+02:00" \
+        "[$(hostname --short)] Network recovered"
+```
+
+Use `--key` for periodic status messages where only the newest unsent version
+is useful. A newer message with the same key replaces the queued older one:
+
+```bash
+printf '%s\n' "The service is still unavailable." | \
+    /usr/local/sbin/raspi-notify \
+        --key service-unavailable \
+        "[$(hostname --short)] Service still unavailable"
+```
+
+Do not use a shared key for distinct critical events that must each be retained.
+
+## Retry and recovery behavior
+
+Failed deliveries retry after 1, 2, 4, 8, 15, 30 and then 60 minutes. Event,
+queue and delivery times are appended to the delivered message. If power is
+lost while a message is being delivered, the next dispatcher run returns the
+interrupted message to the queue. Invalid queue entries are moved to `bad/`
+instead of being discarded.
+
+The queue is intentionally persistent. Review its contents before deleting a
+failed or obsolete notification.
+
+## Rollback
+
+The apply command prints its backup directory. To restore the files that were
+present before installation, pass that exact directory:
+
+```bash
+sudo ./install-notify.sh --rollback /var/backups/raspi-notify/YYYYMMDD-HHMMSS
+```
+
+Rollback does not delete queued messages or SMTP configuration. If the timer
+was enabled manually, disable it separately when retiring the queue:
+
+```bash
+sudo systemctl disable --now raspi-notify-dispatcher.timer
+```
+
+Older scripts that call `msmtp` directly should be migrated gradually. Do not
+remove a working legacy notifier until its replacement has been tested on the
+target Raspberry Pi.

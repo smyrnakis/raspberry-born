@@ -1,0 +1,224 @@
+#!/bin/bash
+set -u
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CONFIG_FILE=/etc/raspi-notify/notify.conf
+SPOOL_DIR=/var/spool/raspi-notify
+QUEUE_DIR=$SPOOL_DIR/queue
+TMP_DIR=$SPOOL_DIR/tmp
+BAD_DIR=$SPOOL_DIR/bad
+LOCK_FILE=/run/lock/raspi-notify.lock
+BACKOFF_SECONDS=(60 120 240 480 900 1800 3600)
+
+log() {
+    logger -t raspi-notify-dispatcher -- "$*"
+}
+
+if [[ $EUID -ne 0 ]]; then
+    echo "raspi-notify-dispatcher must run as root" >&2
+    exit 1
+fi
+if [[ ! -r "$CONFIG_FILE" ]]; then
+    log "Cannot read $CONFIG_FILE"
+    exit 1
+fi
+
+MAIL_FROM=""
+MAIL_TO=""
+MAIL_FROM_NAME=""
+MSMTP_ACCOUNT=""
+while IFS='=' read -r key value || [[ -n "${key:-}${value:-}" ]]; do
+    key=${key%$'\r'}
+    value=${value%$'\r'}
+    [[ -z "$key" || "$key" == \#* ]] && continue
+    case "$key" in
+        MAIL_FROM) MAIL_FROM=$value ;;
+        MAIL_TO) MAIL_TO=$value ;;
+        MAIL_FROM_NAME) MAIL_FROM_NAME=$value ;;
+        MSMTP_ACCOUNT) MSMTP_ACCOUNT=$value ;;
+        *) log "Unknown setting in $CONFIG_FILE: $key"; exit 1 ;;
+    esac
+done <"$CONFIG_FILE"
+
+for value_name in MAIL_FROM MAIL_TO MAIL_FROM_NAME MSMTP_ACCOUNT; do
+    if [[ -z "${!value_name}" || "${!value_name}" == *$'\n'* || "${!value_name}" == *$'\r'* ]]; then
+        log "Invalid or empty setting in $CONFIG_FILE: $value_name"
+        exit 1
+    fi
+done
+if [[ "$MAIL_FROM" == *[[:space:]]* || "$MAIL_FROM" != *@* ||
+      "$MAIL_TO" == *[[:space:]]* || "$MAIL_TO" != *@* ||
+      ! "$MSMTP_ACCOUNT" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+    log "Invalid address or account setting in $CONFIG_FILE"
+    exit 1
+fi
+
+duration_text() {
+    local total=$1
+    local days hours minutes seconds
+    (( total < 0 )) && total=0
+    days=$((total / 86400))
+    hours=$(((total % 86400) / 3600))
+    minutes=$(((total % 3600) / 60))
+    seconds=$((total % 60))
+    if (( days > 0 )); then
+        printf '%d d %d h %d min' "$days" "$hours" "$minutes"
+    elif (( hours > 0 )); then
+        printf '%d h %d min' "$hours" "$minutes"
+    elif (( minutes > 0 )); then
+        printf '%d min %d s' "$minutes" "$seconds"
+    else
+        printf '%d s' "$seconds"
+    fi
+}
+
+read_number() {
+    local file=$1 default_value=$2 value
+    if [[ -r "$file" ]]; then
+        value=$(<"$file")
+        if [[ "$value" =~ ^[0-9]+$ ]]; then
+            printf '%s' "$value"
+            return
+        fi
+    fi
+    printf '%s' "$default_value"
+}
+
+mark_bad() {
+    local message_dir=$1 reason=$2
+    local name
+    name=$(basename -- "$message_dir")
+    log "Quarantining invalid queued message $name: $reason"
+    mv -- "$message_dir" "$BAD_DIR/$name-$(date +%s)-$$"
+}
+
+umask 077
+install -d -o root -g root -m 700 "$QUEUE_DIR" "$TMP_DIR" "$BAD_DIR"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+    exit 0
+fi
+
+shopt -s nullglob
+
+# A power loss or forced stop can leave a message in the in-flight directory.
+# Restore it before selecting the next message. A newer coalesced copy wins.
+for stranded in "$TMP_DIR"/.sending-*; do
+    [[ -d "$stranded" ]] || continue
+    original_name=${stranded##*/.sending-}
+    target="$QUEUE_DIR/$original_name"
+    if [[ -e "$target" ]]; then
+        rm -rf -- "$stranded"
+    else
+        mv -- "$stranded" "$target"
+    fi
+done
+for previous in "$TMP_DIR"/.old-key-*; do
+    [[ -d "$previous" ]] || continue
+    original_name=key-${previous##*/.old-key-}
+    target="$QUEUE_DIR/$original_name"
+    if [[ -e "$target" ]]; then
+        rm -rf -- "$previous"
+    else
+        mv -- "$previous" "$target"
+    fi
+done
+for incomplete in "$TMP_DIR"/.new.*; do
+    [[ ! -e "$incomplete" ]] || rm -rf -- "$incomplete"
+done
+rm -f -- "$TMP_DIR"/.mail.*
+
+message_dir=""
+original_name=""
+now_epoch=$(date +%s)
+for candidate in "$QUEUE_DIR"/*; do
+    [[ -d "$candidate" ]] || continue
+
+    valid=1
+    for required in subject body event-time event-epoch queued-time queued-epoch attempts next-attempt; do
+        [[ -f "$candidate/$required" ]] || valid=0
+    done
+    if (( valid == 0 )); then
+        mark_bad "$candidate" "required field is missing"
+        continue
+    fi
+
+    next_attempt=$(read_number "$candidate/next-attempt" 0)
+    (( now_epoch >= next_attempt )) || continue
+
+    original_name=$(basename -- "$candidate")
+    message_dir="$TMP_DIR/.sending-$original_name"
+    mv -- "$candidate" "$message_dir"
+    break
+done
+
+# Never hold the queue lock while DNS, TLS or SMTP may block. Producers can
+# still persist critical events while a delivery attempt is in progress.
+flock -u 9
+
+[[ -n "$message_dir" ]] || exit 0
+
+subject=$(<"$message_dir/subject")
+event_time=$(<"$message_dir/event-time")
+event_epoch=$(read_number "$message_dir/event-epoch" 0)
+queued_time=$(<"$message_dir/queued-time")
+attempts=$(read_number "$message_dir/attempts" 0)
+now_epoch=$(date +%s)
+
+sent_time=$(date -Is)
+delay=$(duration_text "$((now_epoch - event_epoch))")
+mail_file=$(mktemp "$TMP_DIR/.mail.XXXXXXXX")
+
+{
+    printf 'From: %s <%s>\n' "$MAIL_FROM_NAME" "$MAIL_FROM"
+    printf 'To: %s\n' "$MAIL_TO"
+    printf 'Subject: %s\n' "$subject"
+    printf 'Date: %s\n' "$(date -R)"
+    printf 'Message-ID: <%s.%s@%s>\n' "$(date +%s%N)" "$$" "$(hostname --short)"
+    printf 'MIME-Version: 1.0\n'
+    printf 'Content-Type: text/plain; charset=UTF-8\n'
+    printf 'Content-Transfer-Encoding: 8bit\n'
+    printf '\n'
+    cat "$message_dir/body"
+    printf '\n\nNotification delivery\n'
+    printf '%s\n' '---------------------'
+    printf '%-22s %s\n' 'Event recorded:' "$event_time"
+    printf '%-22s %s\n' 'Queued locally:' "$queued_time"
+    printf '%-22s %s\n' 'Email sent:' "$sent_time"
+    printf '%-22s %s\n' 'Delivery delay:' "$delay"
+} >"$mail_file"
+
+if timeout 45s msmtp --account="$MSMTP_ACCOUNT" "$MAIL_TO" <"$mail_file"; then
+    rm -f -- "$mail_file"
+    rm -rf -- "$message_dir"
+    if (( attempts > 0 )); then
+        log "Delivered delayed notification after $attempts failed attempt(s): $subject"
+    else
+        log "Delivered notification: $subject"
+    fi
+    exit 0
+fi
+
+rm -f -- "$mail_file"
+attempts=$((attempts + 1))
+index=$((attempts - 1))
+if (( index >= ${#BACKOFF_SECONDS[@]} )); then
+    index=$((${#BACKOFF_SECONDS[@]} - 1))
+fi
+retry_delay=${BACKOFF_SECONDS[$index]}
+printf '%s\n' "$attempts" >"$message_dir/attempts"
+printf '%s\n' "$((now_epoch + retry_delay))" >"$message_dir/next-attempt"
+
+if (( attempts == 1 || attempts == 5 || attempts == 7 )); then
+    log "Delivery attempt $attempts failed; retry in ${retry_delay}s: $subject"
+fi
+
+flock -w 15 9
+target="$QUEUE_DIR/$original_name"
+if [[ -e "$target" ]]; then
+    # A newer coalesced notification supersedes this failed in-flight copy.
+    rm -rf -- "$message_dir"
+else
+    mv -- "$message_dir" "$target"
+fi
+flock -u 9

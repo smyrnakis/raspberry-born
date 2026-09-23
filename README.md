@@ -41,7 +41,7 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 
 [Dynamic DNS (ddclient & noip DUC)](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/dynamic-dns.md) - install & configure *ddclient* or *noip DUC*
 
-[Emails from Raspberry pi](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/email.md) - Configure *msmtp* client to send emails
+[Email notifications](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/email.md) - Configure `msmtp` with a durable local notification queue
 
 [Message Of The Day - MOTD](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/motd.md) - Customise the MOTD
 

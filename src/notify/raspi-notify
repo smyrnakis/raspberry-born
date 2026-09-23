@@ -1,0 +1,109 @@
+#!/bin/bash
+set -euo pipefail
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+SPOOL_DIR=/var/spool/raspi-notify
+QUEUE_DIR=$SPOOL_DIR/queue
+TMP_DIR=$SPOOL_DIR/tmp
+LOCK_FILE=/run/lock/raspi-notify.lock
+
+usage() {
+    echo "Usage: $0 [--key KEY] [--event-time ISO-8601] SUBJECT" >&2
+    exit 2
+}
+
+key=""
+event_time=""
+while [[ $# -gt 1 ]]; do
+    case "$1" in
+        --key)
+            [[ $# -ge 3 ]] || usage
+            key=$2
+            shift 2
+            ;;
+        --event-time)
+            [[ $# -ge 3 ]] || usage
+            event_time=$2
+            shift 2
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+[[ $# -eq 1 ]] || usage
+
+if [[ $EUID -ne 0 ]]; then
+    echo "raspi-notify must run as root so it can use the protected queue" >&2
+    exit 1
+fi
+if [[ ! -d "$QUEUE_DIR" || ! -d "$TMP_DIR" ]]; then
+    echo "Notification queue is not installed under $SPOOL_DIR" >&2
+    exit 1
+fi
+
+subject=${1//$'\r'/ }
+subject=${subject//$'\n'/ }
+[[ -n "$subject" ]] || usage
+
+body=$(cat)
+now_epoch=$(date +%s)
+now_iso=$(date -Is)
+
+if [[ -z "$event_time" ]]; then
+    event_time=$now_iso
+fi
+if ! event_epoch=$(date -d "$event_time" +%s 2>/dev/null); then
+    echo "Invalid --event-time value: $event_time" >&2
+    exit 2
+fi
+
+umask 077
+exec 9>"$LOCK_FILE"
+flock -w 15 9
+
+staging=$(mktemp -d "$TMP_DIR/.new.XXXXXXXX")
+cleanup() {
+    [[ ! -d "$staging" ]] || rm -rf -- "$staging"
+}
+trap cleanup EXIT
+
+printf '%s\n' "$subject" >"$staging/subject"
+printf '%s\n' "$body" >"$staging/body"
+printf '%s\n' "$event_time" >"$staging/event-time"
+printf '%s\n' "$event_epoch" >"$staging/event-epoch"
+printf '%s\n' "$now_iso" >"$staging/queued-time"
+printf '%s\n' "$now_epoch" >"$staging/queued-epoch"
+printf '0\n' >"$staging/attempts"
+printf '0\n' >"$staging/next-attempt"
+
+if [[ -n "$key" ]]; then
+    safe_key=$(printf '%s' "$key" | tr -cs 'A-Za-z0-9_.-' '_' | cut -c1-100)
+    [[ -n "$safe_key" ]] || safe_key=notification
+    target="$QUEUE_DIR/key-$safe_key"
+    old="$TMP_DIR/.old-key-$safe_key"
+    if [[ -e "$old" ]]; then
+        if [[ -e "$target" ]]; then
+            rm -rf -- "$old"
+        else
+            mv -- "$old" "$target"
+        fi
+    fi
+    if [[ -e "$target" ]]; then
+        mv -- "$target" "$old"
+    fi
+    mv -- "$staging" "$target"
+    [[ ! -e "$old" ]] || rm -rf -- "$old"
+else
+    id="$(date +%s%N)-$$-$RANDOM"
+    mv -- "$staging" "$QUEUE_DIR/msg-$id"
+fi
+
+trap - EXIT
+flock -u 9
+exec 9>&-
+systemctl --no-block start raspi-notify-dispatcher.service >/dev/null 2>&1 || true

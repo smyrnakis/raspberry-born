@@ -1,0 +1,18 @@
+# Example system-wide msmtp configuration.
+# Install the real file as /etc/msmtprc with owner root:root and mode 600.
+# Never commit the real account, sender address, password or access token.
+
+defaults
+auth on
+tls on
+tls_starttls on
+tls_trust_file system
+timeout 30
+syslog on
+
+account default
+host smtp.example.invalid
+port 587
+user sender@example.invalid
+from sender@example.invalid
+passwordeval "cat /etc/msmtp-password < /dev/null"

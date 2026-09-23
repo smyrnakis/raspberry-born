@@ -56,7 +56,7 @@ As of 2026-09-20:
 - `chapters/grafana.md` will not be included in the current reconciliation. Rebuild it in a dedicated session.
 - `chapters/mosquitto.md` will not be included in the current reconciliation. Rebuild it in a dedicated session.
 - `chapters/ups.md` is intended for inclusion after style, portability and sanitization review.
-- The current `chapters/watchdog.md` will be excluded from the first reconciliation and rebuilt later as a safe hardware-watchdog guide.
+- `chapters/watchdog.md` was initially deferred, then reopened at the user's request on 2026-09-22 for rebuilding as a safe hardware-watchdog and service-recovery guide. Keep it in a separate reviewable commit.
 - UPS scripts and configuration templates should be maintained under `src/`, with the chapter explaining their purpose, operation, installation and verification.
 - The Raspi3-02 installation is complete and tested.
 - The durable mail queue and UPS watchdog are deployed successfully on Raspi3-02.
@@ -193,7 +193,7 @@ Rationale:
 
 ### Deferred untracked drafts
 
-Status: leave `chapters/grafana.md`, `chapters/mosquitto.md` and `chapters/watchdog.md` untracked and untouched during the first reconciliation. Their complete copies are also present in the verified backup. Review `chapters/ups.md` separately as the only untracked chapter currently intended for inclusion.
+Status: leave `chapters/grafana.md` and `chapters/mosquitto.md` untracked and untouched during the first reconciliation. Their complete copies are also present in the verified backup. `chapters/ups.md` remains under separate review. `chapters/watchdog.md` has been reopened and rebuilt at the user's request, but remains untracked pending review.
 
 ### `chapters/ups.md`
 
@@ -202,10 +202,47 @@ Status: candidate for inclusion.
 - Matches the UPS task's final documentation-stage copy by SHA-256.
 - Must be reviewed for repository style, generic applicability, sanitization and links to maintained `src/` assets.
 - The general guide should not embed Raspi3-02-only paths or values except in a clearly labelled tested-example section.
+- The core NUT installation, status interpretation, shutdown mechanics and test record remain useful.
+- Preserve both test outcomes: an online forced-shutdown test did not restart the UPS while utility power remained present, while the final realistic outage test restored UPS output and rebooted the Raspberry Pi successfully when utility power returned.
+- Keep the destructive `upsmon -c fsd` test behind a prominent, explicit confirmation boundary. The non-destructive `upsdrvctl -t shutdown` check is not a substitute for the final outage test.
+
+Read-only bundle findings:
+
+- The deployed UPS bundle is operational and passed Bash syntax checks, but it is device-specific rather than repository-ready.
+- File names, systemd descriptions, configuration directories, spool paths and state paths are hardcoded with `raspi3` or `raspi3-02`.
+- The installer assumes UPS name `myups@localhost`, references `nut-driver@myups.service` directly and requires an existing `/etc/msmtprc`.
+- It installs both the UPS monitor and the general durable notification queue, so copying it would duplicate cross-cutting notification logic.
+- It creates timestamped backups but has no check-only mode, explicit apply gate or automatic rollback after a failed service/configuration change.
+- It removes existing NUT `NOTIFYCMD` and relevant `NOTIFYFLAG` directives before installing its managed block, which could replace another notification integration.
+- No actual passwords, email addresses, MAC addresses, DDNS names or private keys were found in the reviewed UPS source files.
+- USB vendor/product identifiers such as `0665:5161` identify the tested UPS model, not a unique device, and may remain in the tested-hardware example.
+
+Approved repository design:
+
+1. Generalize the durable mail queue once under `src/notify/`; UPS, boot and VPN monitoring should call that common interface instead of carrying their own mail implementation.
+2. Generalize the UPS event hook, monitor, configuration example and systemd units under `src/ups/`, with neutral names and configurable UPS/service identifiers.
+3. Give both installers a read-only validation mode by default, an explicit apply mode, timestamped backups and documented rollback. Do not silently replace an existing NUT notification command.
+4. Restructure `chapters/ups.md` as a reusable NUT guide with an optional advanced monitoring section and a concise Raspi3-02 tested-deployment note.
+5. Implement this as two reviewable commits: the durable notification foundation first, then the UPS integration and chapter.
+
+### Durable notification foundation
+
+Status: committed locally in the focused `Add durable notification queue` commit on 2026-09-23. No deployment has been made.
+
+- Replaced the direct-send-only email chapter with a reusable `msmtp` transport and persistent queue guide.
+- Added neutral reusable assets under `src/notify/`; no Raspi3-02-specific path, email address or SMTP credential was imported.
+- Kept the real `notify.conf` ignored and documented `/etc/msmtprc` plus the optional password file as local-only configuration.
+- The notifier persists each message before requesting delivery. Keyed periodic messages can be coalesced without coalescing distinct critical events.
+- The dispatcher uses bounded SMTP attempts and retry backoff, quarantines malformed entries and recovers messages interrupted during delivery or keyed-message replacement.
+- The installer is read-only by default. `--apply` creates a timestamped backup, installs files and validates installed units, but does not enable or restart the timer.
+- Automatic and manual rollback restore only an explicit allowlist of managed files. Queued messages and SMTP configuration are left untouched.
+- Git Bash parsing, Markdown fence, relative-link, LF and prohibited-identifier checks are required before commit. Native systemd verification and a real delivery test remain Raspberry Pi pre-deployment checks.
+- Clarified that `/etc/msmtp-password` contains only one application-password or token line, with no assignment, quoting or surrounding spaces.
+- Added expected outcomes for the oneshot dispatcher, journal, pending queue and malformed-message quarantine checks.
 
 ### `chapters/watchdog.md`
 
-Status: exclude from the first reconciliation and rebuild later.
+Status: rebuilt in the working tree at the user's request; pending focused review and a separate commit.
 
 Findings:
 
@@ -217,7 +254,19 @@ Findings:
 - Monitoring `wlan0` could cause unwanted reboots and needs explicit assumptions.
 - The fork-bomb test is destructive and unsuitable for a general guide.
 
-Decision: exclude the current file from the first reconciliation commit and rebuild it later as a safe hardware-watchdog guide.
+Implemented replacement:
+
+- Separates whole-system hardware watchdog recovery, systemd service restart and protocol-specific application health checks.
+- Detects `/boot/firmware/config.txt` or the legacy `/boot/config.txt` instead of assuming one location.
+- Documents systemd and the Debian `watchdog` daemon as mutually exclusive owners of the hardware device.
+- Uses the current `kernel_watchdog_timeout` firmware handoff for the systemd-owned path and retains `dtparam=watchdog=on` only for the legacy or classic-daemon path.
+- Begins with read-only driver, device, systemd and ownership checks.
+- Uses a minimal hardware-only configuration before optional checks are considered.
+- Explains common `watchdog.conf` parameters, including load, memory, temperature, file, PID, network, custom test and repair checks.
+- Clarifies that `interface` observes received traffic rather than driver health, and that quiet networks or unreachable ping targets can create reboot loops.
+- Routes SSH, OpenVPN, Pi-hole, Mosquitto and NUT toward systemd process recovery plus application-specific health checks rather than unconditional whole-system resets.
+- Replaces the fork bomb with a controlled, explicitly disruptive keepalive-stop test for the classic daemon only.
+- Requires a planned reboot or service activation boundary and local or out-of-band recovery access before arming or testing the watchdog.
 
 ### Ignored `src/vpn/OpenVPN-email_inotifywait.sh`
 
@@ -367,10 +416,25 @@ Status: completed and verified.
 - Final local validation passed for the approved VPN files; native nftables validation remains an explicit Raspberry Pi pre-deployment check.
 - Committed the approved generalized Athens-Crete VPN case study and nftables assets in a focused reconciliation commit.
 - Reconciled the README navigation for the tracked Athens-Crete VPN and NASPi guides. The UPS link remains intentionally deferred until the UPS chapter is committed, avoiding a broken link.
+- User approved splitting the durable notification foundation from the UPS integration.
+- Drafted the reusable notification queue, safe installer and replacement email chapter. No Raspberry Pi was contacted or changed.
+
+### 2026-09-22
+
+- Clarified the local SMTP password-file format and documented the expected notification queue verification results.
+- Added expected post-recovery outcomes to the UPS guide and replaced the site-specific Internet-provider wording with generic Internet connectivity wording.
+- User confirmed that the Mosquitto chapter remains deferred for a later dedicated topic.
+- Reopened and rebuilt the hardware-watchdog guide using current Raspberry Pi, Debian watchdog, Linux kernel and systemd documentation. No watchdog was enabled or tested on a Raspberry Pi.
+
+### 2026-09-23
+
+- Clarified exactly where and how to add `kernel_watchdog_timeout=15`, including duplicate detection, `[all]` placement, Vim save instructions and verification before reboot.
+- Replaced the vague classic-daemon handoff warning with explicit checks and migration steps that prevent systemd and `watchdog.service` from owning the hardware device simultaneously.
+- User approved the notification, UPS-verification and rebuilt watchdog documentation changes. The notification foundation is authorized for its focused local commit; UPS and watchdog remain separate commit scopes.
+- Committed the durable notification foundation locally with Linux executable modes for its installer, enqueue command and dispatcher. No push or deployment was performed.
 
 ## Next controlled chunk
 
-1. Review and commit the focused README navigation change.
-2. Begin the separate UPS chapter and reusable-script review.
-3. Add the UPS README link only in the same commit that adds the approved chapter.
-4. Keep Mosquitto and hardware-watchdog entries deferred; do not update local `main`, deploy or push.
+1. Commit the approved rebuilt hardware-watchdog guide separately.
+2. Generalize the UPS integration, revise the remaining device-specific chapter content and add its README link as a separate focused commit.
+3. Keep Mosquitto deferred; do not update local `main`, deploy or push.

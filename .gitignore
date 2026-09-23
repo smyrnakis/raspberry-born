@@ -12,3 +12,4 @@ src/hosts_ATH
 src/hosts_GVA
 src/vpn/OpenVPN-email_*
 src/vpn/site-to-site/site.conf
+src/notify/notify.conf

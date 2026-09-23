@@ -1,0 +1,13 @@
+[Unit]
+Description=Retry queued Raspberry Pi email notifications
+
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=1min
+AccuracySec=10s
+RandomizedDelaySec=5s
+Persistent=false
+Unit=raspi-notify-dispatcher.service
+
+[Install]
+WantedBy=timers.target

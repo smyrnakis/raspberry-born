@@ -1,0 +1,6 @@
+# Copy this file to notify.conf and replace every example value locally.
+# notify.conf is ignored by Git and is installed with mode 600.
+MAIL_FROM=sender@example.invalid
+MAIL_TO=recipient@example.invalid
+MAIL_FROM_NAME=Raspberry Pi
+MSMTP_ACCOUNT=default
