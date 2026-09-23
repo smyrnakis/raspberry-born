@@ -63,6 +63,8 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 
 [Uncomplicated FireWall - UFW](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/harden.md#uncomplicated-firewall-ufw) - install & configure UFW
 
+[Hardware watchdog and service recovery](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/watchdog.md) - recover from system hangs and choose safe service-specific health checks
+
 [vim editor](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vim.md) - install & configure vim editor
 
 [X-C1 board](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/x-c1.md) - install & configure X-C1 power/fan board

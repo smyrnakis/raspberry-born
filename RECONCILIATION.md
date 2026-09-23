@@ -242,7 +242,7 @@ Status: committed locally in the focused `Add durable notification queue` commit
 
 ### `chapters/watchdog.md`
 
-Status: rebuilt in the working tree at the user's request; pending focused review and a separate commit.
+Status: committed locally in the focused `Rebuild hardware watchdog guide` commit on 2026-09-23. No deployment has been made.
 
 Findings:
 
@@ -432,9 +432,10 @@ Status: completed and verified.
 - Replaced the vague classic-daemon handoff warning with explicit checks and migration steps that prevent systemd and `watchdog.service` from owning the hardware device simultaneously.
 - User approved the notification, UPS-verification and rebuilt watchdog documentation changes. The notification foundation is authorized for its focused local commit; UPS and watchdog remain separate commit scopes.
 - Committed the durable notification foundation locally with Linux executable modes for its installer, enqueue command and dispatcher. No push or deployment was performed.
+- Added the approved hardware-watchdog guide to README navigation for its separate local commit.
+- Committed the rebuilt hardware-watchdog guide and README navigation locally. No watchdog configuration, reboot or Raspberry Pi change was performed.
 
 ## Next controlled chunk
 
-1. Commit the approved rebuilt hardware-watchdog guide separately.
-2. Generalize the UPS integration, revise the remaining device-specific chapter content and add its README link as a separate focused commit.
-3. Keep Mosquitto deferred; do not update local `main`, deploy or push.
+1. Generalize the UPS integration, revise the remaining device-specific chapter content and add its README link as a separate focused commit.
+2. Keep Mosquitto deferred; do not update local `main`, deploy or push.
