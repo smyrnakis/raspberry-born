@@ -1,0 +1,9 @@
+[Unit]
+Description=Process NUT UPS events immediately
+
+[Path]
+PathExistsGlob=/var/lib/raspi-ups-monitor/events/*.event
+Unit=raspi-ups-monitor.service
+
+[Install]
+WantedBy=multi-user.target

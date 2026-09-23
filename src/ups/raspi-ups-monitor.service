@@ -1,0 +1,13 @@
+[Unit]
+Description=Monitor a NUT UPS and process queued events
+After=nut-server.service nut-monitor.service
+Wants=nut-server.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/raspi-ups-monitor
+TimeoutStartSec=90
+Nice=10
+IOSchedulingClass=idle
+PrivateTmp=true
+ProtectHome=true

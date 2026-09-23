@@ -1,0 +1,13 @@
+[Unit]
+Description=Check the NUT UPS every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=1min
+AccuracySec=10s
+RandomizedDelaySec=5s
+Persistent=false
+Unit=raspi-ups-monitor.service
+
+[Install]
+WantedBy=timers.target

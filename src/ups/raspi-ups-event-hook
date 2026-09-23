@@ -1,0 +1,40 @@
+#!/bin/bash
+set -euo pipefail
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+EVENT_DIR=/var/lib/raspi-ups-monitor/events
+
+event_type=${NOTIFYTYPE:-${1:-}}
+ups_name=${UPSNAME:-${2:-unknown}}
+
+case "$event_type" in
+    ONLINE|ONBATT|LOWBATT|FSD|SHUTDOWN|COMMBAD|COMMOK|NOCOMM|REPLBATT) ;;
+    *)
+        logger -t raspi-ups-event-hook \
+            "Ignoring unsupported NUT event: ${event_type:-empty}"
+        exit 0
+        ;;
+esac
+
+if [[ ! -d "$EVENT_DIR" || ! -w "$EVENT_DIR" ]]; then
+    logger -t raspi-ups-event-hook "Cannot write NUT event queue $EVENT_DIR"
+    exit 1
+fi
+
+ups_name=${ups_name//$'\r'/ }
+ups_name=${ups_name//$'\n'/ }
+epoch=$(date +%s)
+iso=$(date -Is)
+umask 007
+tmp=$(mktemp "$EVENT_DIR/.event.XXXXXXXX")
+trap 'rm -f -- "$tmp"' EXIT
+printf 'TYPE=%s\nUPS=%s\nEPOCH=%s\nISO=%s\n' \
+    "$event_type" "$ups_name" "$epoch" "$iso" >"$tmp"
+chmod 660 "$tmp"
+target="$EVENT_DIR/$epoch-$(date +%N)-$$.event"
+mv -- "$tmp" "$target"
+trap - EXIT
+
+case "$event_type" in
+    LOWBATT|FSD|SHUTDOWN) sync -f "$EVENT_DIR" 2>/dev/null || true ;;
+esac

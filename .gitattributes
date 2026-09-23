@@ -1,2 +1,3 @@
 src/vpn/site-to-site/* text eol=lf
 src/notify/* text eol=lf
+src/ups/* text eol=lf

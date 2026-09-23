@@ -43,7 +43,7 @@ As of 2026-09-20:
 - Local `main` remains unchanged at `e88de61`.
 - Nothing has been pushed.
 - The tracked working tree is clean.
-- The deferred untracked chapters remain present: `grafana.md`, `mosquitto.md`, `ups.md` and `watchdog.md`.
+- The deferred untracked chapters remain present: `grafana.md` and `mosquitto.md`. The UPS chapter and reusable UPS assets are prepared for review but not committed.
 
 ## Confirmed project decisions
 
@@ -193,11 +193,11 @@ Rationale:
 
 ### Deferred untracked drafts
 
-Status: leave `chapters/grafana.md` and `chapters/mosquitto.md` untracked and untouched during the first reconciliation. Their complete copies are also present in the verified backup. `chapters/ups.md` remains under separate review. `chapters/watchdog.md` has been reopened and rebuilt at the user's request, but remains untracked pending review.
+Status: leave `chapters/grafana.md` and `chapters/mosquitto.md` untracked and untouched during the first reconciliation. Their complete copies are also present in the verified backup. `chapters/ups.md` is being reviewed separately. `chapters/watchdog.md` was rebuilt, approved and committed locally.
 
 ### `chapters/ups.md`
 
-Status: candidate for inclusion.
+Status: committed locally in the focused `Add reusable UPS monitoring guide` commit on 2026-09-23; not deployed.
 
 - Matches the UPS task's final documentation-stage copy by SHA-256.
 - Must be reviewed for repository style, generic applicability, sanitization and links to maintained `src/` assets.
@@ -224,6 +224,17 @@ Approved repository design:
 3. Give both installers a read-only validation mode by default, an explicit apply mode, timestamped backups and documented rollback. Do not silently replace an existing NUT notification command.
 4. Restructure `chapters/ups.md` as a reusable NUT guide with an optional advanced monitoring section and a concise Raspi3-02 tested-deployment note.
 5. Implement this as two reviewable commits: the durable notification foundation first, then the UPS integration and chapter.
+
+Implementation prepared for review:
+
+- Added neutral `raspi-ups-monitor` and `raspi-ups-event-hook` commands, configurable service names, systemd service/timer/path units and an ignored local configuration file under `src/ups/`.
+- Preserved the tested immediate-event, one-minute polling, persistent outage tracking, coalesced on-battery update, increasing communication-reminder and voltage-trend runtime-estimation behavior.
+- Added a read-only-by-default installer with explicit `--apply`, timestamped backups, automatic failure rollback and allowlisted manual rollback.
+- The installer refuses an existing external NUT `NOTIFYCMD` or overlapping event `NOTIFYFLAG` entries instead of silently replacing another integration.
+- Installation does not enable units, restart NUT, change UPS state or send an email. Those actions remain separate documented approval points.
+- Reworked the chapter into a general NUT guide, optional durable monitoring procedure and concise Raspi3-02 tested-deployment record. The successful realistic outage test and unsuccessful online-restart behavior are both retained.
+- Added expected outcomes for activation, queue/event inspection, safe simulations and runtime-estimator self-test.
+- Git Bash syntax, whitespace, Markdown fence, local-link, LF and prohibited-identifier checks passed locally. Native systemd validation and NUT integration tests remain Raspberry Pi pre-deployment checks.
 
 ### Durable notification foundation
 
@@ -434,8 +445,11 @@ Status: completed and verified.
 - Committed the durable notification foundation locally with Linux executable modes for its installer, enqueue command and dispatcher. No push or deployment was performed.
 - Added the approved hardware-watchdog guide to README navigation for its separate local commit.
 - Committed the rebuilt hardware-watchdog guide and README navigation locally. No watchdog configuration, reboot or Raspberry Pi change was performed.
+- Prepared the generalized UPS monitor assets, safe installer, reusable UPS chapter and README navigation. No Raspberry Pi was contacted or changed.
+- User reviewed and approved the generalized UPS chunk for its focused local commit.
+- Committed the reusable UPS chapter, monitor assets, safe installer and README navigation locally. No NUT configuration, service state, UPS state or Raspberry Pi was changed.
 
 ## Next controlled chunk
 
-1. Generalize the UPS integration, revise the remaining device-specific chapter content and add its README link as a separate focused commit.
-2. Keep Mosquitto deferred; do not update local `main`, deploy or push.
+1. Build a read-only source map for the Raspi3-02 device runbook, separating reusable components from Crete-specific operational details before drafting the chapter.
+2. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or push.

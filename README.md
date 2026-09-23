@@ -63,6 +63,8 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 
 [Uncomplicated FireWall - UFW](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/harden.md#uncomplicated-firewall-ufw) - install & configure UFW
 
+[UPS monitoring with NUT](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/ups.md) - configure safe shutdown, recovery tests and durable UPS notifications
+
 [Hardware watchdog and service recovery](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/watchdog.md) - recover from system hangs and choose safe service-specific health checks
 
 [vim editor](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vim.md) - install & configure vim editor

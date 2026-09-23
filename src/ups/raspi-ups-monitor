@@ -1,0 +1,498 @@
+#!/bin/bash
+set -u
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CONFIG_FILE=/etc/raspi-ups-monitor/ups-monitor.conf
+NOTIFY=/usr/local/sbin/raspi-notify
+RUNTIME_DIR=/run/raspi-ups-monitor
+STATE_DIR=/var/lib/raspi-ups-monitor
+EVENT_DIR=$STATE_DIR/events
+LOCK_FILE=/run/lock/raspi-ups-monitor.lock
+SAMPLE_FILE=$RUNTIME_DIR/battery-voltage-samples
+LOG_TAG=raspi-ups-monitor
+
+UPS_NAME=""
+UPS_DRIVER_SERVICE=""
+NUT_SERVER_SERVICE=nut-server.service
+NUT_MONITOR_SERVICE=nut-monitor.service
+COMM_FAILURE_CHECKS=2
+BATTERY_UPDATE_SECONDS=300
+RUNTIME_ESTIMATE_WINDOW_SECONDS=900
+RUNTIME_ESTIMATE_MIN_SAMPLES=5
+RUNTIME_ESTIMATE_MIN_SPAN_SECONDS=240
+RUNTIME_ESTIMATE_MIN_DROP_VOLTS=0.2
+RUNTIME_ESTIMATE_MAX_SECONDS=86400
+COMM_REMINDER_OFFSETS_SECONDS="3600 14400 57600 230400 921600 2592000"
+COMM_MONTHLY_REMINDER_SECONDS=2592000
+
+load_config() {
+    local key value
+    [[ -r "$CONFIG_FILE" ]] || {
+        logger -t "$LOG_TAG" "Cannot read $CONFIG_FILE"
+        return 1
+    }
+    while IFS='=' read -r key value || [[ -n "${key:-}${value:-}" ]]; do
+        key=${key%$'\r'}
+        value=${value%$'\r'}
+        [[ -z "$key" || "$key" == \#* ]] && continue
+        case "$key" in
+            UPS_NAME|UPS_DRIVER_SERVICE|NUT_SERVER_SERVICE|NUT_MONITOR_SERVICE|\
+            COMM_FAILURE_CHECKS|BATTERY_UPDATE_SECONDS|\
+            RUNTIME_ESTIMATE_WINDOW_SECONDS|RUNTIME_ESTIMATE_MIN_SAMPLES|\
+            RUNTIME_ESTIMATE_MIN_SPAN_SECONDS|RUNTIME_ESTIMATE_MIN_DROP_VOLTS|\
+            RUNTIME_ESTIMATE_MAX_SECONDS|COMM_REMINDER_OFFSETS_SECONDS|\
+            COMM_MONTHLY_REMINDER_SECONDS)
+                printf -v "$key" '%s' "$value"
+                ;;
+            *)
+                logger -t "$LOG_TAG" "Unknown setting in $CONFIG_FILE: $key"
+                return 1
+                ;;
+        esac
+    done <"$CONFIG_FILE"
+
+    [[ "$UPS_NAME" =~ ^[A-Za-z0-9_.-]+(@[A-Za-z0-9_.:-]+)?$ ]] || return 1
+    [[ "$UPS_DRIVER_SERVICE" =~ ^[A-Za-z0-9@_.:-]+\.service$ ]] || return 1
+    [[ "$NUT_SERVER_SERVICE" =~ ^[A-Za-z0-9@_.:-]+\.service$ ]] || return 1
+    [[ "$NUT_MONITOR_SERVICE" =~ ^[A-Za-z0-9@_.:-]+\.service$ ]] || return 1
+    local integer
+    for integer in COMM_FAILURE_CHECKS BATTERY_UPDATE_SECONDS \
+        RUNTIME_ESTIMATE_WINDOW_SECONDS RUNTIME_ESTIMATE_MIN_SAMPLES \
+        RUNTIME_ESTIMATE_MIN_SPAN_SECONDS RUNTIME_ESTIMATE_MAX_SECONDS \
+        COMM_MONTHLY_REMINDER_SECONDS; do
+        [[ "${!integer}" =~ ^[1-9][0-9]*$ ]] || return 1
+    done
+    [[ "$RUNTIME_ESTIMATE_MIN_DROP_VOLTS" =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
+    [[ "$COMM_REMINDER_OFFSETS_SECONDS" =~ ^[1-9][0-9]*(\ [1-9][0-9]*)*$ ]] || return 1
+}
+
+load_config || {
+    echo "Invalid UPS monitor configuration: $CONFIG_FILE" >&2
+    exit 1
+}
+[[ $EUID -eq 0 ]] || { echo "raspi-ups-monitor must run as root" >&2; exit 1; }
+[[ -x "$NOTIFY" ]] || { echo "Missing notification command: $NOTIFY" >&2; exit 1; }
+
+install -d -o root -g root -m 700 "$RUNTIME_DIR"
+install -d -o root -g nut -m 710 "$STATE_DIR"
+install -d -o root -g nut -m 2770 "$EVENT_DIR"
+exec 9>"$LOCK_FILE"
+flock -n 9 || exit 0
+
+host=$(hostname --short)
+UPS_DATA=""
+UPS_DATA_AVAILABLE=0
+
+read_number() {
+    local file=$1 fallback=$2 value
+    [[ -r "$file" ]] || { printf '%s' "$fallback"; return; }
+    value=$(<"$file")
+    [[ "$value" =~ ^[0-9]+$ ]] && printf '%s' "$value" || printf '%s' "$fallback"
+}
+
+read_text() {
+    local file=$1 fallback=${2:-}
+    [[ -r "$file" ]] && cat -- "$file" || printf '%s' "$fallback"
+}
+
+write_state() {
+    local name=$1 value=$2 tmp
+    tmp=$(mktemp "$STATE_DIR/.state.XXXXXXXX")
+    printf '%s\n' "$value" >"$tmp"
+    chmod 600 "$tmp"
+    mv -- "$tmp" "$STATE_DIR/$name"
+}
+
+clear_power_state() {
+    rm -f -- "$STATE_DIR"/power-{active,start-epoch,start-iso,next-update,initial-charge,min-charge,low-alerted,shutdown-alerted}
+    rm -f -- "$SAMPLE_FILE"
+}
+
+clear_comm_state() {
+    rm -f -- "$STATE_DIR"/comm-{active,start-epoch,start-iso,reminder-index}
+}
+
+collect_ups_data() {
+    if UPS_DATA=$(upsc "$UPS_NAME" 2>/dev/null); then
+        UPS_DATA_AVAILABLE=1
+        return 0
+    fi
+    UPS_DATA=""
+    UPS_DATA_AVAILABLE=0
+    return 1
+}
+
+ups_value() {
+    local wanted=$1
+    (( UPS_DATA_AVAILABLE == 1 )) || return 0
+    awk -F ': ' -v wanted="$wanted" '$1 == wanted {print substr($0,index($0,": ")+2); exit}' <<<"$UPS_DATA"
+}
+
+metric() {
+    local value=$1 unit=${2:-}
+    if [[ -z "$value" || "$value" == n/a ]]; then
+        printf 'n/a'
+    elif [[ -n "$unit" ]]; then
+        printf '%s %s' "$value" "$unit"
+    else
+        printf '%s' "$value"
+    fi
+}
+
+duration_text() {
+    local total=$1 days hours minutes seconds
+    (( total < 0 )) && total=0
+    days=$((total / 86400)); hours=$(((total % 86400) / 3600))
+    minutes=$(((total % 3600) / 60)); seconds=$((total % 60))
+    if (( days > 0 )); then printf '%d d %d h %d min' "$days" "$hours" "$minutes"
+    elif (( hours > 0 )); then printf '%d h %d min' "$hours" "$minutes"
+    elif (( minutes > 0 )); then printf '%d min %d s' "$minutes" "$seconds"
+    else printf '%d s' "$seconds"; fi
+}
+
+record_sample() {
+    local epoch=$1 voltage cutoff tmp last_epoch
+    voltage=$(ups_value battery.voltage)
+    [[ "$voltage" =~ ^[0-9]+([.][0-9]+)?$ ]] || return 0
+    if [[ -s "$SAMPLE_FILE" ]]; then
+        last_epoch=$(awk 'END {print $1}' "$SAMPLE_FILE")
+        [[ "$last_epoch" =~ ^[0-9]+$ ]] && (( epoch - last_epoch < 30 )) && return 0
+    fi
+    printf '%s %s\n' "$epoch" "$voltage" >>"$SAMPLE_FILE"
+    cutoff=$((epoch - RUNTIME_ESTIMATE_WINDOW_SECONDS))
+    tmp="$SAMPLE_FILE.tmp"
+    awk -v cutoff="$cutoff" '$1 >= cutoff' "$SAMPLE_FILE" >"$tmp"
+    mv -- "$tmp" "$SAMPLE_FILE"
+}
+
+runtime_display() {
+    local reported low result seconds span drop confidence
+    reported=$(ups_value battery.runtime)
+    [[ "$reported" =~ ^[0-9]+$ ]] && {
+        printf '%s (reported by UPS)' "$(duration_text "$reported")"; return;
+    }
+    low=$(ups_value battery.voltage.low)
+    [[ "$low" =~ ^[0-9]+([.][0-9]+)?$ && -s "$SAMPLE_FILE" ]] || {
+        printf 'learning or unavailable'; return;
+    }
+    result=$(awk -v nmin="$RUNTIME_ESTIMATE_MIN_SAMPLES" \
+        -v smin="$RUNTIME_ESTIMATE_MIN_SPAN_SECONDS" \
+        -v dmin="$RUNTIME_ESTIMATE_MIN_DROP_VOLTS" \
+        -v low="$low" -v max="$RUNTIME_ESTIMATE_MAX_SECONDS" '
+        {if(!n){base=$1; first=$2} x=$1-base; y=$2; n++; sx+=x; sy+=y; sxx+=x*x; sxy+=x*y; lastx=x; last=y}
+        END {den=n*sxx-sx*sx; drop=first-last;
+          if(n<nmin||lastx<smin||drop<dmin||den<=0){print "unavailable"; exit}
+          slope=(n*sxy-sx*sy)/den;
+          if(slope>=0||last<=low){print "unavailable"; exit}
+          runtime=(last-low)/(-slope);
+          if(runtime<60||runtime>max){print "unavailable"; exit}
+          printf "%.0f %.0f %.3f\n",runtime,lastx,drop}' "$SAMPLE_FILE")
+    [[ -n "$result" && "$result" != unavailable ]] || { printf 'n/a (voltage trend is not stable)'; return; }
+    read -r seconds span drop <<<"$result"
+    confidence=low
+    if (( span >= 600 )) && awk -v d="$drop" 'BEGIN{exit !(d>=0.4)}'; then confidence=medium; fi
+    printf '~%s (voltage trend to %s V, %s confidence)' \
+        "$(duration_text "$seconds")" "$low" "$confidence"
+}
+
+status_description() {
+    local raw=$1 token text result=""
+    for token in $raw; do
+        case "$token" in
+            OL) text="Online, utility power available";; OB) text="On battery";;
+            LB) text="Low battery";; RB) text="Battery replacement required";;
+            FSD) text="Forced shutdown in progress";; CHRG) text="Battery charging";;
+            DISCHRG) text="Battery discharging";; BYPASS) text="Bypass active";;
+            OFF) text="UPS output off";; OVER) text="UPS overloaded";;
+            TRIM) text="Input voltage being trimmed";; BOOST) text="Input voltage being boosted";;
+            *) text=$token;;
+        esac
+        [[ -z "$result" ]] || result+=", "
+        result+=$text
+    done
+    printf '%s' "${result:-n/a}"
+}
+
+service_state() {
+    local state
+    state=$(systemctl is-active "$1" 2>/dev/null || true)
+    printf '%s' "${state:-n/a}"
+}
+
+format_snapshot() {
+    local status
+    status=$(ups_value ups.status)
+    printf '\nUPS status\n%s\n' '----------'
+    printf '%-30s %s\n' 'UPS State:' "$(status_description "$status")"
+    printf '%-30s %s\n' 'UPS Battery Charge:' "$(metric "$(ups_value battery.charge)" '%')"
+    printf '%-30s %s\n' 'UPS Battery Voltage:' "$(metric "$(ups_value battery.voltage)" 'V')"
+    printf '%-30s %s\n' 'UPS Estimated Runtime:' "$(runtime_display)"
+    printf '%-30s %s\n' 'UPS Load:' "$(metric "$(ups_value ups.load)" '%')"
+    printf '%-30s %s\n' 'UPS Input Voltage:' "$(metric "$(ups_value input.voltage)" 'V')"
+    printf '%-30s %s\n' 'UPS Output Voltage:' "$(metric "$(ups_value output.voltage)" 'V')"
+    printf '%-30s %s\n' 'UPS Input Frequency:' "$(metric "$(ups_value input.frequency)" 'Hz')"
+    printf '%-30s %s\n' 'UPS Temperature:' "$(metric "$(ups_value ups.temperature)" 'C')"
+    printf '\nNUT services\n%s\n' '------------'
+    printf '%-30s %s\n' 'UPS Driver:' "$(service_state "$UPS_DRIVER_SERVICE")"
+    printf '%-30s %s\n' 'NUT Server:' "$(service_state "$NUT_SERVER_SERVICE")"
+    printf '%-30s %s\n' 'NUT Monitor:' "$(service_state "$NUT_MONITOR_SERVICE")"
+}
+
+queue_notice() {
+    local subject=$1 body=$2 key=$3 event_time=$4
+    if [[ -n "$key" ]]; then
+        printf '%s\n' "$body" | "$NOTIFY" --key "$key" --event-time "$event_time" "$subject"
+    else
+        printf '%s\n' "$body" | "$NOTIFY" --event-time "$event_time" "$subject"
+    fi
+}
+
+current_charge() {
+    local charge
+    charge=$(ups_value battery.charge)
+    [[ "$charge" =~ ^[0-9]+([.][0-9]+)?$ ]] && printf '%s' "$charge"
+}
+
+update_min_charge() {
+    local current minimum
+    current=$(current_charge); [[ -n "$current" ]] || return 0
+    minimum=$(read_text "$STATE_DIR/power-min-charge")
+    if [[ ! "$minimum" =~ ^[0-9]+([.][0-9]+)?$ ]] || \
+       awk -v a="$current" -v b="$minimum" 'BEGIN{exit !(a<b)}'; then
+        write_state power-min-charge "$current"
+    fi
+}
+
+begin_outage() {
+    local epoch=$1 iso=$2 charge body
+    if [[ -r "$STATE_DIR/power-active" ]]; then record_sample "$epoch"; update_min_charge; return; fi
+    charge=$(current_charge)
+    write_state power-active 1; write_state power-start-epoch "$epoch"; write_state power-start-iso "$iso"
+    write_state power-next-update "$((epoch + BATTERY_UPDATE_SECONDS))"
+    write_state power-initial-charge "${charge:-n/a}"; write_state power-min-charge "${charge:-n/a}"
+    rm -f -- "$SAMPLE_FILE"; record_sample "$epoch"
+    body="UPS POWER FAILURE
+=================
+Host:                       $host
+Event:                      Utility power was lost
+Occurred:                   $iso
+Power source:               Battery
+Time on battery:            0 s
+$(format_snapshot)"
+    queue_notice "[$host] UPS: Utility power lost" "$body" "ups-incident-$epoch" "$iso" || return 1
+    logger -t "$LOG_TAG" "Utility power lost; UPS is on battery"
+}
+
+send_update() {
+    local epoch=$1 iso=$2 start start_iso elapsed body
+    start=$(read_number "$STATE_DIR/power-start-epoch" "$epoch")
+    start_iso=$(read_text "$STATE_DIR/power-start-iso" "$iso"); elapsed=$((epoch-start))
+    update_min_charge
+    body="UPS POWER FAILURE UPDATE
+========================
+Host:                       $host
+Power failure began:        $start_iso
+Status measured:            $iso
+Time on battery:            $(duration_text "$elapsed")
+$(format_snapshot)"
+    queue_notice "[$host] UPS: On battery - $(duration_text "$elapsed")" "$body" "ups-incident-$start" "$iso" || return 1
+    write_state power-next-update "$((epoch + BATTERY_UPDATE_SECONDS))"
+}
+
+send_low_battery() {
+    local epoch=$1 iso=$2 start elapsed body
+    [[ -r "$STATE_DIR/power-active" ]] || begin_outage "$epoch" "$iso"
+    [[ ! -r "$STATE_DIR/power-low-alerted" ]] || return 0
+    start=$(read_number "$STATE_DIR/power-start-epoch" "$epoch"); elapsed=$((epoch-start))
+    body="UPS LOW BATTERY
+===============
+Host:                       $host
+Event:                      The UPS reported low battery
+Reported:                   $iso
+Time on battery:            $(duration_text "$elapsed")
+Expected action:            NUT will initiate a clean system shutdown
+$(format_snapshot)"
+    queue_notice "[$host] UPS: LOW BATTERY" "$body" "ups-low-battery-$start" "$iso" || return 1
+    write_state power-low-alerted 1; logger -t "$LOG_TAG" "UPS reported low battery"
+}
+
+send_shutdown() {
+    local epoch=$1 iso=$2 kind=$3 start body
+    [[ ! -r "$STATE_DIR/power-shutdown-alerted" ]] || return 0
+    start=$(read_number "$STATE_DIR/power-start-epoch" "$epoch")
+    body="UPS EMERGENCY SHUTDOWN
+======================
+Host:                       $host
+Event:                      NUT initiated a clean system shutdown
+NUT notification:           $kind
+Shutdown initiated:         $iso
+$(format_snapshot)"
+    queue_notice "[$host] UPS: Shutdown initiated" "$body" "ups-shutdown-$start" "$iso" || return 1
+    write_state power-shutdown-alerted 1; logger -t "$LOG_TAG" "NUT initiated shutdown ($kind)"
+}
+
+recover_power() {
+    local epoch=$1 iso=$2 start start_iso elapsed initial minimum current body
+    [[ -r "$STATE_DIR/power-active" ]] || return 0
+    start=$(read_number "$STATE_DIR/power-start-epoch" "$epoch")
+    start_iso=$(read_text "$STATE_DIR/power-start-iso" "$iso"); elapsed=$((epoch-start))
+    initial=$(read_text "$STATE_DIR/power-initial-charge" n/a)
+    minimum=$(read_text "$STATE_DIR/power-min-charge" n/a); current=$(current_charge)
+    body="UPS POWER RESTORED
+==================
+Host:                       $host
+Power failure began:        $start_iso
+Power restored:             $iso
+Outage duration:            $(duration_text "$elapsed")
+Initial battery charge:     $(metric "$initial" '%')
+Minimum battery charge:     $(metric "$minimum" '%')
+Current battery charge:     $(metric "$current" '%')
+$(format_snapshot)"
+    queue_notice "[$host] UPS: Utility power restored" "$body" "ups-incident-$start" "$iso" || return 1
+    clear_power_state; logger -t "$LOG_TAG" "Utility power restored after $(duration_text "$elapsed")"
+}
+
+comm_threshold() {
+    local index=$1 start=$2 offsets count offset
+    read -r -a offsets <<<"$COMM_REMINDER_OFFSETS_SECONDS"; count=${#offsets[@]}
+    if (( index < count )); then offset=${offsets[$index]}
+    else offset=$((${offsets[$((count-1))]} + (index-count+1)*COMM_MONTHLY_REMINDER_SECONDS)); fi
+    printf '%s' "$((start+offset))"
+}
+
+handle_comm_failure() {
+    local epoch=$1 iso=$2 count first index threshold start elapsed body
+    if [[ -r "$STATE_DIR/comm-active" ]]; then
+        start=$(read_number "$STATE_DIR/comm-start-epoch" "$epoch")
+        index=$(read_number "$STATE_DIR/comm-reminder-index" 0)
+        threshold=$(comm_threshold "$index" "$start"); (( epoch >= threshold )) || return 0
+        elapsed=$((epoch-start))
+        body="UPS COMMUNICATION FAILURE REMINDER
+==================================
+Host:                       $host
+Failure duration:           $(duration_text "$elapsed")
+Status measured:            $iso
+Impact:                     UPS status and automatic shutdown are unavailable"
+        queue_notice "[$host] UPS: Communication failure - $(duration_text "$elapsed")" "$body" "ups-communication-$start" "$iso" || return 1
+        index=$((index+1)); while (( $(comm_threshold "$index" "$start") <= epoch )); do index=$((index+1)); done
+        write_state comm-reminder-index "$index"; return 0
+    fi
+    count=$(read_number "$RUNTIME_DIR/comm-fail-count" 0)
+    (( count == 0 )) && { printf '%s\n' "$epoch" >"$RUNTIME_DIR/comm-first-epoch"; printf '%s\n' "$iso" >"$RUNTIME_DIR/comm-first-iso"; }
+    count=$((count+1)); printf '%s\n' "$count" >"$RUNTIME_DIR/comm-fail-count"
+    (( count >= COMM_FAILURE_CHECKS )) || return 0
+    first=$(read_number "$RUNTIME_DIR/comm-first-epoch" "$epoch")
+    iso=$(read_text "$RUNTIME_DIR/comm-first-iso" "$iso")
+    body="UPS COMMUNICATION FAILURE
+=========================
+Host:                       $host
+Failure began:              $iso
+Consecutive failed checks:  $count
+Impact:                     UPS status and automatic shutdown are unavailable"
+    queue_notice "[$host] UPS: Communication failure" "$body" "ups-communication-$first" "$iso" || return 1
+    write_state comm-active 1; write_state comm-start-epoch "$first"; write_state comm-start-iso "$iso"; write_state comm-reminder-index 0
+    logger -t "$LOG_TAG" "UPS communication failure detected"
+}
+
+handle_comm_success() {
+    local epoch=$1 iso=$2 start elapsed body
+    rm -f -- "$RUNTIME_DIR"/comm-{fail-count,first-epoch,first-iso}
+    [[ -r "$STATE_DIR/comm-active" ]] || return 0
+    start=$(read_number "$STATE_DIR/comm-start-epoch" "$epoch"); elapsed=$((epoch-start))
+    body="UPS COMMUNICATION RESTORED
+==========================
+Host:                       $host
+Communication restored:     $iso
+Failure duration:           $(duration_text "$elapsed")
+$(format_snapshot)"
+    queue_notice "[$host] UPS: Communication restored" "$body" "ups-communication-$start" "$iso" || return 1
+    clear_comm_state; logger -t "$LOG_TAG" "UPS communication restored after $(duration_text "$elapsed")"
+}
+
+process_event() {
+    local file=$1 kind epoch iso body
+    kind=$(sed -n 's/^TYPE=//p' "$file" | head -n 1)
+    epoch=$(sed -n 's/^EPOCH=//p' "$file" | head -n 1)
+    iso=$(sed -n 's/^ISO=//p' "$file" | head -n 1)
+    [[ "$epoch" =~ ^[0-9]+$ && -n "$iso" ]] || return 1
+    case "$kind" in
+        ONBATT) begin_outage "$epoch" "$iso";; ONLINE) recover_power "$epoch" "$iso";;
+        LOWBATT) send_low_battery "$epoch" "$iso";; FSD|SHUTDOWN) send_shutdown "$epoch" "$iso" "$kind";;
+        REPLBATT)
+            printf -v body 'The UPS reported a battery replacement warning at %s.\n%s' "$iso" "$(format_snapshot)"
+            queue_notice "[$host] UPS: Battery replacement required" "$body" ups-replace-battery "$iso"
+            ;;
+        COMMBAD|NOCOMM|COMMOK) :;; *) return 1;;
+    esac
+}
+
+simulate() {
+    local label=$1 iso body
+    iso=$(date -Is); collect_ups_data || true
+    body="UPS MONITOR TEST
+================
+Host:                       $host
+Simulated event:            $label
+Occurred:                   $iso
+No UPS state, NUT service or power source was changed.
+$(format_snapshot)"
+    queue_notice "[$host] TEST - UPS $label" "$body" "" "$iso" || return 1
+    printf 'Queued test notification: %s\n' "$label"
+}
+
+case "${1:-}" in
+    --check) collect_ups_data && { echo "UPS monitor check: communication healthy"; format_snapshot; exit 0; }; echo "UPS monitor check: communication FAILED" >&2; exit 1;;
+    --render-test) collect_ups_data || true; format_snapshot; exit 0;;
+    --self-test-runtime-estimator)
+        now_epoch=$(date +%s)
+        test_file=$(mktemp "$RUNTIME_DIR/runtime-estimator-test.XXXXXXXX")
+        SAMPLE_FILE=$test_file
+        UPS_DATA_AVAILABLE=1
+        UPS_DATA=$'ups.status: OB\nbattery.voltage: 26.6\nbattery.voltage.low: 20.8'
+        {
+            printf '%s 27.0\n' "$((now_epoch-240))"
+            printf '%s 26.9\n' "$((now_epoch-180))"
+            printf '%s 26.8\n' "$((now_epoch-120))"
+            printf '%s 26.7\n' "$((now_epoch-60))"
+            printf '%s 26.6\n' "$now_epoch"
+        } >"$SAMPLE_FILE"
+        test_result=$(runtime_display)
+        rm -f -- "$SAMPLE_FILE"
+        [[ "$test_result" == '~'* ]] || { echo "Runtime estimator self-test failed: $test_result" >&2; exit 1; }
+        printf 'Runtime estimator self-test: %s\n' "$test_result"
+        exit 0
+        ;;
+    --simulate-power-failure) simulate "utility power lost"; exit $?;;
+    --simulate-power-update) simulate "on-battery update"; exit $?;;
+    --simulate-low-battery) simulate "low battery"; exit $?;;
+    --simulate-shutdown) simulate "shutdown initiated"; exit $?;;
+    --simulate-power-restored) simulate "utility power restored"; exit $?;;
+    --simulate-communication-failure) simulate "communication failure"; exit $?;;
+    --simulate-communication-restored) simulate "communication restored"; exit $?;;
+    "") :;;
+    *) echo "Usage: $0 [--check|--render-test|--self-test-runtime-estimator|--simulate-power-failure|--simulate-power-update|--simulate-low-battery|--simulate-shutdown|--simulate-power-restored|--simulate-communication-failure|--simulate-communication-restored]" >&2; exit 2;;
+esac
+
+now_epoch=$(date +%s); now_iso=$(date -Is); collect_ups_data || true
+shopt -s nullglob
+for event_file in "$EVENT_DIR"/*.event; do
+    if process_event "$event_file"; then rm -f -- "$event_file"
+    else logger -t "$LOG_TAG" "Could not process $(basename -- "$event_file")"; break; fi
+done
+
+if (( UPS_DATA_AVAILABLE == 0 )); then handle_comm_failure "$now_epoch" "$now_iso"; exit $?; fi
+handle_comm_success "$now_epoch" "$now_iso" || exit 1
+status=$(ups_value ups.status)
+if [[ " $status " != *" FSD "* && ! -r "$STATE_DIR/power-active" ]]; then
+    rm -f -- "$STATE_DIR/power-low-alerted" "$STATE_DIR/power-shutdown-alerted"
+fi
+if [[ " $status " == *" OB "* || " $status " == *" LB "* ]]; then
+    begin_outage "$now_epoch" "$now_iso" || exit 1
+    update_min_charge
+    [[ " $status " != *" LB "* ]] || send_low_battery "$now_epoch" "$now_iso" || exit 1
+    next=$(read_number "$STATE_DIR/power-next-update" "$((now_epoch+BATTERY_UPDATE_SECONDS))")
+    (( now_epoch < next )) || send_update "$now_epoch" "$now_iso" || exit 1
+elif [[ " $status " == *" OL "* ]]; then
+    recover_power "$now_epoch" "$now_iso" || exit 1
+fi
+[[ " $status " != *" FSD "* ]] || send_shutdown "$now_epoch" "$now_iso" FSD || exit 1
