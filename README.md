@@ -35,7 +35,7 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 
 [Auto-start program at boot](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/autostart.md) - example with *noip*
 
-[Auto updates](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/auto-updates.md) - configure daily automatic updates
+[Automatic security updates](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/auto-updates.md) - install Debian-Security updates and report broader maintenance weekly
 
 [Backup the Raspberry pi](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/backup.md) - manual or automatic backup of microSD card
 

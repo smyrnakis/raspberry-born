@@ -1,0 +1,219 @@
+#!/bin/bash
+set -euo pipefail
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+NOTIFY=/usr/local/sbin/raspi-notify
+STATE_DIR=/var/lib/raspi-update-report
+LOCK_FILE=/run/lock/raspi-update-report.lock
+REBOOT_REQUIRED=/run/reboot-required
+REBOOT_PACKAGES=/run/reboot-required.pkgs
+LOG_TAG=raspi-update-report
+
+usage() {
+    echo "Usage: $0 [--check|--weekly|--reboot-required|--simulate-reboot-required]" >&2
+    exit 2
+}
+
+apt_value() {
+    local key=$1 dump=$2
+    sed -n "s/^${key//:/\\:} \"\(.*\)\";$/\1/p" <<<"$dump" | tail -n 1
+}
+
+automatic_reboot_status() {
+    local dump reboot with_users reboot_time
+    dump=$(apt-config dump)
+    reboot=$(apt_value 'Unattended-Upgrade::Automatic-Reboot' "$dump")
+    with_users=$(apt_value 'Unattended-Upgrade::Automatic-Reboot-WithUsers' "$dump")
+    reboot_time=$(apt_value 'Unattended-Upgrade::Automatic-Reboot-Time' "$dump")
+    if [[ $reboot == false ]]; then
+        echo "disabled"
+    elif [[ $reboot == true && $with_users == false && $reboot_time == 04:45 ]]; then
+        echo "conditional at 04:45; logged-in users prevent it"
+    else
+        echo "unexpected configuration"
+        return 1
+    fi
+}
+
+mode=${1:---check}
+[[ $# -le 1 ]] || usage
+case "$mode" in --check|--weekly|--reboot-required|--simulate-reboot-required) ;; *) usage ;; esac
+
+check_policy() {
+    local dump enabled active reboot_status
+    dump=$(apt-config dump)
+    grep -Fq 'label=Debian-Security' <<<"$dump" || {
+        echo "Debian-Security is not present in the effective unattended-upgrades origins" >&2
+        return 1
+    }
+    if grep -E '^(Unattended-Upgrade::Origins-Pattern::|Unattended-Upgrade::Allowed-Origins::)' <<<"$dump" | grep -Fvq 'label=Debian-Security'; then
+        echo "An unattended origin outside Debian-Security is enabled" >&2
+        return 1
+    fi
+    reboot_status=$(automatic_reboot_status) || {
+        echo "Automatic reboot is not disabled or using the approved 04:45 profile" >&2
+        return 1
+    }
+    grep -Eq 'APT::Periodic::Unattended-Upgrade[[:space:]]+"1"' <<<"$dump" || {
+        echo "Daily unattended upgrades are not enabled in the effective APT policy" >&2
+        return 1
+    }
+
+    echo "APT policy: Debian-Security enabled; automatic reboot $reboot_status"
+    enabled=$(systemctl is-enabled apt-daily.timer apt-daily-upgrade.timer \
+        raspi-update-weekly-report.timer raspi-update-reboot-alert.path 2>&1 || true)
+    active=$(systemctl is-active apt-daily.timer apt-daily-upgrade.timer \
+        raspi-update-weekly-report.timer raspi-update-reboot-alert.path 2>&1 || true)
+    printf 'Enabled states:\n%s\nActive states:\n%s\n' "$enabled" "$active"
+    if [[ -e "$REBOOT_REQUIRED" ]]; then
+        echo "Reboot status: required"
+    else
+        echo "Reboot status: not requested"
+    fi
+}
+
+if [[ $mode == --check ]]; then
+    check_policy
+    exit 0
+fi
+
+[[ $EUID -eq 0 ]] || { echo "Run this mode with sudo" >&2; exit 1; }
+[[ -x "$NOTIFY" ]] || { echo "Missing notification command: $NOTIFY" >&2; exit 1; }
+install -d -o root -g root -m 700 "$STATE_DIR"
+exec 9>"$LOCK_FILE"
+flock -w 30 9
+host=$(hostname --short)
+now=$(date -Is)
+
+queue_notice() {
+    local subject=$1 body=$2 key=$3
+    printf '%s\n' "$body" | "$NOTIFY" --key "$key" --event-time "$now" "$subject"
+}
+
+send_reboot_alert() {
+    local boot_id previous packages body tmp reboot_status
+    [[ -e "$REBOOT_REQUIRED" ]] || exit 0
+    boot_id=$(</proc/sys/kernel/random/boot_id)
+    previous=""
+    [[ ! -r "$STATE_DIR/reboot-alerted-boot-id" ]] || previous=$(<"$STATE_DIR/reboot-alerted-boot-id")
+    [[ "$previous" != "$boot_id" ]] || exit 0
+
+    packages="not reported"
+    if [[ -s "$REBOOT_PACKAGES" ]]; then
+        packages=$(sort -u "$REBOOT_PACKAGES" | sed -n '1,100p')
+    fi
+    reboot_status=$(automatic_reboot_status || echo "unexpected configuration")
+    body=$(cat <<EOF
+PACKAGE UPDATE REQUIRES REBOOT
+==============================
+Host:                       $host
+Detected:                   $now
+Action:                     Review system health, then approve a reboot
+Automatic reboot:           $reboot_status
+
+Packages requesting reboot
+---------------------------
+$packages
+
+The request remains active until the Raspberry Pi reboots. Verify VPN,
+firewall, UPS and local recovery paths before rebooting a remote system.
+EOF
+)
+    queue_notice "[$host] Package update requires reboot" "$body" reboot-required || return 1
+    tmp=$(mktemp "$STATE_DIR/.reboot-alert.XXXXXXXX")
+    printf '%s\n' "$boot_id" >"$tmp"
+    chmod 600 "$tmp"
+    mv -- "$tmp" "$STATE_DIR/reboot-alerted-boot-id"
+    logger -t "$LOG_TAG" "Queued reboot-required notification"
+}
+
+send_test_reboot_alert() {
+    local body reboot_status
+    reboot_status=$(automatic_reboot_status || echo "unexpected configuration")
+    body=$(cat <<EOF
+PACKAGE UPDATE REBOOT ALERT TEST
+================================
+Host:                       $host
+Generated:                  $now
+Action:                     none; this is a simulated notification
+Automatic reboot:           $reboot_status
+
+No reboot-required flag was created and no package, service or reboot state
+was changed.
+EOF
+)
+    queue_notice "[$host] TEST - Package update reboot alert" "$body" ""
+    echo "Queued simulated reboot-required notification"
+}
+
+send_weekly_report() {
+    local tmp_dir plan packages removals package_count removal_count summary
+    local reboot_status disk_free body
+    tmp_dir=$(mktemp -d /run/raspi-update-report.XXXXXXXX)
+    trap 'rm -rf -- "$tmp_dir"' EXIT
+
+    if ! apt-get -o DPkg::Lock::Timeout=300 update; then
+        body=$(cat <<EOF
+WEEKLY PACKAGE UPDATE CHECK FAILED
+==================================
+Host:                       $host
+Checked:                    $now
+Result:                     apt-get update failed
+Packages installed:         none
+
+Inspect the service journal and APT source configuration. Repository output is
+not copied into this email because source URLs can contain local information.
+EOF
+)
+        queue_notice "[$host] Weekly package check FAILED" "$body" weekly-update-report
+        logger -t "$LOG_TAG" "Weekly apt-get update failed"
+        return 1
+    fi
+
+    plan=$tmp_dir/full-upgrade-plan
+    LC_ALL=C apt-get -s -o Debug::NoLocking=1 full-upgrade >"$plan"
+    packages=$tmp_dir/packages
+    removals=$tmp_dir/removals
+    awk '$1 == "Inst" {print $2}' "$plan" | sort -u >"$packages"
+    awk '$1 == "Remv" {print $2}' "$plan" | sort -u >"$removals"
+    package_count=$(awk 'END {print NR}' "$packages")
+    removal_count=$(awk 'END {print NR}' "$removals")
+    summary=$(grep -E '^[0-9]+ upgraded, ' "$plan" | tail -n 1 || true)
+    reboot_status="not requested"
+    [[ ! -e "$REBOOT_REQUIRED" ]] || reboot_status="already required before this report"
+    disk_free=$(df -h / | awk 'NR == 2 {print $4 " available of " $2}')
+
+    body=$(cat <<EOF
+WEEKLY PACKAGE UPDATE REPORT
+============================
+Host:                       $host
+Checked:                    $now
+Packages installed:         none; simulation only
+Pending package actions:    $package_count install/upgrade, $removal_count remove
+Root filesystem:            $disk_free
+Reboot status:              $reboot_status
+APT summary:                ${summary:-not available}
+
+Packages to install or upgrade (maximum 200 shown)
+---------------------------------------------------
+$(sed -n '1,200p' "$packages")
+
+Packages to remove (maximum 100 shown)
+--------------------------------------
+$(sed -n '1,100p' "$removals")
+
+Review the complete plan with:
+  sudo apt-get -s full-upgrade
+
+Apply it only in an approved, staggered maintenance window.
+EOF
+)
+    queue_notice "[$host] Weekly package report: $package_count pending" "$body" weekly-update-report
+    logger -t "$LOG_TAG" "Queued weekly update report with $package_count pending package actions"
+}
+
+case "$mode" in
+    --weekly) send_weekly_report ;;
+    --reboot-required) send_reboot_alert ;;
+    --simulate-reboot-required) send_test_reboot_alert ;;
+esac

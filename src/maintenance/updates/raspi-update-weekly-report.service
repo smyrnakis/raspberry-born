@@ -1,0 +1,13 @@
+[Unit]
+Description=Refresh APT metadata and report pending same-release updates
+Wants=network-online.target
+After=network-online.target apt-daily.service apt-daily-upgrade.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/raspi-update-report --weekly
+TimeoutStartSec=30min
+Nice=10
+IOSchedulingClass=idle
+PrivateTmp=true
+ProtectHome=true

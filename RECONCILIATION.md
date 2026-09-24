@@ -35,15 +35,16 @@ Audit date: 2026-09-19
 
 ## Current integration state
 
-As of 2026-09-20:
+As of 2026-09-24 after the approved automatic-updates commit:
 
-- Reconciliation branch: `codex/reconcile-2026-09-19`; its unpublished checkpoint hash may change when approved ledger updates are amended.
+- Reconciliation branch: `codex/reconcile-2026-09-19`.
 - The branch is based on `origin/main` at `2086acc` and contains the planning checkpoint plus focused reconciliation commits.
 - The three reviewed remote commits are now present in the branch history.
 - Local `main` remains unchanged at `e88de61`.
 - Nothing has been pushed.
 - The tracked working tree is clean.
-- The deferred untracked chapters remain present: `grafana.md` and `mosquitto.md`. The UPS chapter and reusable UPS assets are prepared for review but not committed.
+- The deferred untracked chapters remain present: `grafana.md` and `mosquitto.md`.
+- The durable notification, hardware-watchdog, UPS and automatic-updates changes are committed locally in separate focused commits. None has been deployed.
 
 ## Confirmed project decisions
 
@@ -315,6 +316,44 @@ Before importing any file:
 - Ensure installers do not perform disruptive work without explicit user confirmation.
 - Keep secrets and live profiles outside Git.
 
+### Raspi3-02 runbook source map
+
+Status: completed as a read-only mapping pass on 2026-09-23. No bundle file was imported and no Raspberry Pi was contacted.
+
+Already generalized in focused repository components:
+
+- durable notification delivery under `src/notify/`
+- UPS monitoring and NUT event handling under `src/ups/`
+- Athens-Crete VPN-to-LAN routing under `src/vpn/site-to-site/`
+
+Reusable components that still require separate generalization:
+
+- boot reporting, with optional checks selected through local configuration instead of hardcoded Raspi3-02 services
+- OpenVPN client health monitoring, bounded service recovery and reboot suppression
+- Debian-Security-only unattended upgrades without automatic reboot
+- pure-zram and bounded volatile-journal policies, with their storage and troubleshooting tradeoffs documented separately
+
+Raspi3-02-specific runbook content:
+
+- Crete role, installation order, service inventory and recovery expectations
+- references to the general Athens-Crete routing, UPS and notification guides
+- camera discovery and reachability monitoring using an ignored local configuration
+- the exact combination of VPN client, camera, boot-report, UPS and maintenance services enabled on this device
+
+Files that must not be copied directly:
+
+- deployed `notify.conf` and `site.conf`, which contain prohibited local values
+- the deployed unattended-upgrades fragment, which contains a personal email address
+- the all-in-one installer, which bundles unrelated components and lacks a read-only default, explicit apply gate and automatic rollback
+- live profiles, secrets, runtime state and generated event or mail queues
+
+Recovery constraints to preserve during generalization:
+
+- The VPN watchdog distinguishes a VPN-specific outage from loss of general Internet access. It suppresses reboot when Internet access still works, rate-limits any reboot to a 12-hour minimum interval and continues less-aggressive service restart attempts.
+- Service restarts and reboots remain disruptive operations requiring explicit approval. A reusable installer must not activate the watchdog automatically.
+- The boot report collects host, network, service, storage and UPS state, but site-specific VPN and camera checks must be optional rather than hardcoded.
+- Volatile journaling reduces microSD writes but removes previous-boot logs; durable notifications and explicit recovery checks must document that tradeoff.
+
 ## Additional historical sources to investigate
 
 Two earlier ChatGPT discussions supplied by the user may contain useful requirements or implementation details:
@@ -372,6 +411,60 @@ Retain for staged review:
 - Review copied third-party files, licensing and update strategy.
 - Replace direct SMTP notification scripts gradually with the durable queue.
 - Audit the general OpenVPN server setup at the end of reconciliation. Compare `chapters/vpn.md`, the automated `src/vpn/openvpn-install.sh` workflow and the archived fully manual method; decide which are current, safe and maintainable without combining them blindly.
+
+### Automatic-updates replacement assessment
+
+Status: approved and committed locally in a focused automatic-updates commit on 2026-09-24; not deployed.
+
+Current chapter problems:
+
+- edits the package-owned `50unattended-upgrades` file instead of using a later local override
+- enables automatic reboot at a fixed time, contrary to the approved no-automatic-reboot policy
+- uses Nano, installs a traditional mail stack without relating it to the repository notification design and shows a Gmail-shaped recipient placeholder
+- does not prove which package origins are eligible, inspect the systemd timers, explain service-restart impact or show expected verification results
+
+Tested source findings:
+
+- Raspi3-02 enables daily package-list refresh, unattended upgrades and periodic cache cleanup.
+- Its local origin override clears the distribution defaults and permits Debian-Security origins only.
+- Automatic reboot is disabled and existing local configuration files are retained during package upgrades.
+- The deployed fragment contains a personal email address and must not be imported.
+- The deployed installer changes several unrelated maintenance policies together and restarts `systemd-journald`; it is not suitable as the focused updates installer.
+
+Proposed focused replacement:
+
+- Rename the scope to automatic security updates rather than general automatic updates.
+- Begin with read-only package, origin, timer and current-policy inspection.
+- Use a later local APT configuration fragment, verify the effective policy with `apt-config dump`, and preserve the distribution-owned file.
+- Permit Debian-Security packages only, disable automatic reboot and explain that Raspberry Pi OS vendor packages outside the Debian security archive still require reviewed manual upgrades.
+- State clearly that installing packages automatically can restart affected services even when rebooting is disabled.
+- Keep recipient addresses out of tracked files and omit built-in unattended-upgrades mail. Use the durable `raspi-notify` queue for reboot-required and weekly maintenance reports.
+- Provide dry-run, log, timer, reboot-required and rollback checks with expected outcomes.
+- If repository assets are added, give their installer a read-only default, explicit apply mode, timestamped backup and rollback, without enabling timers or restarting services automatically.
+
+Approved maintenance policy:
+
+- Install Debian-Security updates automatically each day. Keep automatic reboot disabled initially.
+- Use the durable notification queue to send one deduplicated alert when `/run/reboot-required` exists, including the packages recorded in `/run/reboot-required.pkgs` when available.
+- Check all configured repositories weekly and send a report of pending non-security and Raspberry Pi OS vendor updates; do not install that broader set unattended at first.
+- Apply the broader same-release update set regularly in an approved maintenance window, one Raspberry Pi at a time, with a simulation, free-space check, configuration backup and post-update health checks. Raspberry Pi OS guidance uses `apt full-upgrade` for this same-release maintenance.
+- Do not automate a major Debian or Raspberry Pi OS release transition. Rebuild from a current image as a separate project.
+- Consider a conditional 04:45 automatic reboot only after boot, VPN, firewall, UPS and remote-access recovery have been tested on each device. Never schedule both VPN servers for the same maintenance window.
+
+Rationale: smaller regular update batches reduce the size of each change and the time systems remain exposed, but unattended broad upgrades or reboots can interrupt Pi-hole, OpenVPN and other remote services or remove remote access. Email-first reboot handling and staggered reviewed full upgrades are the safer initial policy. The user approved this policy on 2026-09-24.
+
+Implementation prepared for review:
+
+- Replaced the old automatic-reboot chapter with a step-by-step guide covering read-only audit, prerequisites, source validation, explicit application, dry runs, activation, expected outcomes, reboot response, staggered broader maintenance and rollback.
+- Added a Debian-Security-only APT override, explicitly clears other unattended origins, preserves local configuration files and disables automatic reboot.
+- Added a durable reboot-required alert triggered by `/run/reboot-required`. The notification is deduplicated per boot, and the oneshot service remains active while the flag exists so the path unit does not retrigger continuously.
+- Added a Sunday weekly report with a randomized delay. It runs `apt-get update` and simulates `apt-get full-upgrade`, but never installs or removes a package.
+- Added a read-only-by-default installer with explicit apply, timestamped backup, automatic failure rollback and allowlisted manual rollback. It does not install packages, enable units, refresh APT metadata, send notifications, restart services, upgrade packages or reboot.
+- Added a safe simulated reboot-alert template and documented that actual broader upgrades omit `-y` so removals and configuration questions remain interactive.
+- Made the durable notification queue a prominent prerequisite because reboot alerts and weekly reports depend on it.
+- Added an inactive 04:45 automatic-reboot template and a separate read-only-by-default helper with explicit enable, disable and rollback modes. The profile reboots only when a package has requested it and suppresses the reboot while users are logged in. Installing the main policy does not activate this profile.
+- Moved the weekly report window to Sunday after 06:15 so it does not compete with an optional 04:45 reboot.
+- Git Bash syntax, whitespace, Markdown fence, local-link, LF and prohibited-identifier checks passed locally. Native APT parsing, systemd verification, dry-run and notification tests remain Raspberry Pi pre-deployment checks.
 
 ## Required backup point
 
@@ -449,7 +542,15 @@ Status: completed and verified.
 - User reviewed and approved the generalized UPS chunk for its focused local commit.
 - Committed the reusable UPS chapter, monitor assets, safe installer and README navigation locally. No NUT configuration, service state, UPS state or Raspberry Pi was changed.
 
+### 2026-09-24
+
+- User approved daily Debian-Security installation without automatic reboot, durable reboot-required alerts, weekly reporting for broader updates and staggered approved full-upgrade maintenance.
+- Prepared the replacement automatic-updates chapter and focused `src/maintenance/updates/` assets. No package, service, APT metadata, reboot state or Raspberry Pi was changed.
+- User requested a prominent notification prerequisite and a complete opt-in procedure for the conditional 04:45 reboot. Added the documented workflow and repository assets; the reboot profile remains disabled by default and has not been deployed.
+- User approved the completed automatic-updates scope. Committed it locally as a separate focused change after staged content, executable modes, whitespace and sensitive-data checks passed. Nothing was pushed or deployed.
+
 ## Next controlled chunk
 
-1. Build a read-only source map for the Raspi3-02 device runbook, separating reusable components from Crete-specific operational details before drafting the chapter.
-2. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or push.
+1. Review the next reusable Raspi3-02 component separately, starting with boot reporting and its integration with the durable notification queue.
+2. Decide later, per device, whether proven recovery justifies enabling the available conditional 04:45 reboot profile.
+3. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or push.

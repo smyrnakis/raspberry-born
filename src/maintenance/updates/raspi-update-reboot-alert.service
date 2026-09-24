@@ -1,0 +1,11 @@
+[Unit]
+Description=Queue a durable reboot-required notification
+After=raspi-notify-dispatcher.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/raspi-update-report --reboot-required
+# PathExists remains true until reboot; keep this unit active to avoid retriggering.
+RemainAfterExit=yes
+PrivateTmp=true
+ProtectHome=true

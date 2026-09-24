@@ -1,0 +1,11 @@
+[Unit]
+Description=Report pending package updates weekly
+
+[Timer]
+OnCalendar=Sun *-*-* 06:15:00
+RandomizedDelaySec=30min
+Persistent=true
+Unit=raspi-update-weekly-report.service
+
+[Install]
+WantedBy=timers.target

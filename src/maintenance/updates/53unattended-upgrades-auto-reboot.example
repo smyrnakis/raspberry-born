@@ -1,0 +1,4 @@
+// Optional. Activate only after boot and remote-access recovery are tested.
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-WithUsers "false";
+Unattended-Upgrade::Automatic-Reboot-Time "04:45";
