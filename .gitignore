@@ -15,3 +15,4 @@ src/vpn/site-to-site/site.conf
 src/notify/notify.conf
 src/ups/ups-monitor.conf
 src/monitoring/boot-report/boot-report.conf
+src/monitoring/vpn-watchdog/vpn-watchdog.conf

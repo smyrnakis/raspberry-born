@@ -35,14 +35,14 @@ Audit date: 2026-09-19
 
 ## Current integration state
 
-As of 2026-09-25 after the approved boot-report commit:
+As of 2026-09-25 after the approved VPN-watchdog commit:
 
 - Reconciliation branch: `codex/reconcile-2026-09-19`.
 - The branch is based on `origin/main` at `2086acc` and contains the planning checkpoint plus focused reconciliation commits.
 - The three reviewed remote commits are now present in the branch history.
 - Local `main` remains unchanged at `e88de61`.
 - Nothing has been pushed.
-- The automatic-updates and boot-report commits are complete.
+- The automatic-updates, boot-report and VPN-watchdog commits are complete.
 - The deferred untracked chapters remain present: `grafana.md` and `mosquitto.md`.
 - The durable notification, hardware-watchdog, UPS, automatic-updates and boot-report changes are committed locally in separate focused commits. None has been deployed.
 
@@ -67,6 +67,7 @@ As of 2026-09-25 after the approved boot-report commit:
 - Raspi3-02 needs a dedicated device-specific operational chapter covering its networking, discovery, camera, monitoring, storage-write protections and remote-site role.
 - The durable queued email design should become the general notification mechanism for all Raspberry Pis. Older direct-msmtp scripts and instructions will be migrated gradually.
 - Raspi4-01 and Raspi4-02 will be inspected read-only later when access details are supplied.
+- Replace the remaining hardcoded home-directory username references in `chapters/2FA.md` and `src/archive/pihole.md` with generic placeholders during their later focused reviews. Do not expand the current VPN-watchdog commit to include them.
 - Repository work continues in the current Codex task. The separately created reconciliation task remains unused unless explicitly resumed.
 
 ## Source hierarchy
@@ -526,6 +527,89 @@ Implementation prepared for review:
 - Bash parsing, a no-network preview smoke test, Markdown fences, local links, whitespace, LF and sensitive-data pattern checks passed locally. Native systemd verification, Cloudflare lookup, notification delivery and real-boot behavior remain Raspberry Pi pre-deployment checks.
 - Removed device-specific deployment-history wording from the general chapter and expanded legacy discovery with read-only systemd, `rc.local`, cron and script-location checks plus candidate-unit inspection.
 
+### OpenVPN client watchdog assessment
+
+Status: committed locally in the focused `Add reusable OpenVPN watchdog` commit on 2026-09-25; nothing has been deployed or activated.
+
+Sources compared:
+
+- the repository's general VPN, Athens-Crete VPN and hardware-watchdog documentation
+- the deployed Raspi3-02 VPN watchdog bundle
+- the earlier OpenVPN-watchdog discussion and its test results
+
+Useful behavior in the deployed design:
+
+- checks the configured OpenVPN client service, tunnel interface, expected tunnel address and peer reachability
+- keeps healthy polling silent and sends durable queued failure and recovery notifications
+- exposes a read-only `--check` mode and harmless notification simulations
+- uses `flock` to prevent overlapping runs and a systemd timer rather than a long-running shell loop
+- retries service recovery at bounded failure counts rather than restarting on every poll
+- distinguishes a VPN-specific outage from loss of general Internet access
+- suppresses reboot while general Internet access still works and rate-limits any permitted reboot to one per 12 hours
+- records failure state under `/run` and the reboot-rate-limit timestamp under `/var/lib`
+
+Problems that prevent direct reuse:
+
+- paths, service name, interface, tunnel address and peer are specific to Raspi3-02
+- the root-owned configuration is sourced as shell code rather than parsed as strict data
+- the installer also installs unrelated notification, boot-report and camera-monitor components
+- restart and reboot behavior is embedded in the device bundle instead of being an explicit reusable policy
+- external connectivity endpoints and device assumptions need documented, generic defaults
+
+Requirements recovered from the earlier discussion:
+
+- a healthy OpenVPN service alone is insufficient; tunnel configuration and peer reachability must also be checked
+- zero connected clients is normal for an OpenVPN server and must not be treated as a general server failure
+- systemd checks must be time-bounded because an earlier generic OpenVPN status query hung
+- send a recovery notification after a reported outage and state that no reboot occurred when recovery made it unnecessary
+- do not write routine healthy messages to the journal
+- disabling the systemd timer is the clean administrative stop mechanism
+- an active SSH session may suppress a pending reboot, but it is not evidence that the VPN itself is healthy
+- no reliable remote abort exists when both the VPN and every independent management path are unavailable; documentation must not imply otherwise
+
+Recommended reusable design:
+
+- create a focused `chapters/vpn-watchdog.md` and reusable assets under `src/monitoring/vpn-watchdog/`
+- monitor an explicitly configured OpenVPN client instance, interface, optional expected local tunnel address and peer
+- use time-bounded service and network checks and a strict root-owned configuration parser
+- provide read-only `--check` and safe notification-simulation modes that never restart a service or reboot
+- make service restart attempts configurable, sparse and bounded; notify on confirmed failure, recovery, successful restart and any reboot suppression
+- when general Internet access still works, classify the incident as VPN-specific and never reboot
+- keep healthy timer runs silent
+- use the durable `raspi-notify` queue rather than direct SMTP
+- install with read-only validation by default, explicit apply and rollback modes, and do not enable or start the timer
+- support a temporary local reboot-inhibit marker and suppress reboot while interactive users are logged in
+- retain a persistent minimum interval between any permitted reboots
+
+Recommended reboot policy:
+
+- Set `ALLOW_REBOOT=false` in the tracked example and reusable default.
+- Require explicit per-device opt-in only after boot recovery, VPN recovery, firewall restoration and remote access have been tested on that device.
+- Even after opt-in, reboot only for a broader connectivity failure, never for a VPN-only failure while the Internet remains reachable.
+- Treat the timer, service restarts and reboots as separate activation decisions in the guide.
+
+Approved device-specific refinements:
+
+- Raspi3-02 normally has no independent remote-administration path outside its persistent client tunnel to Athens. Its intended final local profile may enable a reboot after 12 continuous hours of unresolved failure, with a 12-hour persistent minimum interval between watchdog reboots, after recovery testing succeeds.
+- When the Raspi3-02 OpenVPN client process is active and independent Internet access works, loss of the Athens tunnel is treated as a likely remote-endpoint or path outage. OpenVPN continues its own retries; the watchdog must not restart the service or reboot Crete in this state.
+- When the local client service is failed, or both the tunnel and independent Internet checks remain unavailable, the local state is not proven healthy. The explicitly enabled Raspi3-02 fallback may reboot after its 12-hour threshold and safeguards.
+- Raspi4-01 and Raspi4-02 are OpenVPN servers but are not expected to have clients connected continuously. Server health must use the service, tunnel interface and listening socket, never client count.
+- Server reboot remains disabled by default. Confirmed server failure sends multiple durable notifications before any separately approved optional reboot.
+
+Implementation prepared for review:
+
+- Added a focused general chapter and neutral assets under `src/monitoring/vpn-watchdog/` for `client` and `server` roles.
+- Added layered client classification so an active reconnecting client plus working ordinary Internet suppresses both restart and reboot instead of mistaking Athens instability for a Crete host failure.
+- Accounted for Debian's `Type=notify` OpenVPN unit behavior by accepting a live client `MainPID` as local-process evidence during reconnection, even when the unit is not in the simple `active` state.
+- Added server service, interface and TCP/UDP listening-socket checks without any connected-client requirement.
+- Added a 10-minute initial notice and reminders near 1, 6 and 11 hours, followed by a separately permitted 12-hour reboot threshold.
+- Added separate safe defaults `ALLOW_SERVICE_RESTART=false` and `ALLOW_REBOOT=false`, bounded restart thresholds, a runtime reboot-inhibit marker, logged-in-user suppression and a persistent 12-hour reboot rate limit.
+- Added read-only configuration and health validation plus notification-only simulations. The installer uses explicit apply and rollback modes and does not enable the timer, run a check, restart OpenVPN, send a notification or reboot.
+- Simplified reader-facing setup language: prerequisite packages are installed directly when missing, OpenVPN client/server roles are named explicitly, repository paths are explained, and optional disable/recovery guidance is separated from normal activation.
+- Clarified that installation needs only the `src/monitoring/vpn-watchdog/` asset directory. A full Raspberry Pi clone is convenient but not required; a copied asset directory may be used instead.
+- Added the exact public clone command and standardized the suggested Raspberry Pi working copy at `~/Software/raspberry-born`, owned by the normal login user rather than `root`. The documented absolute form uses `/home/{USERNAME}/Software/raspberry-born`.
+- The current installer intentionally manages one watchdog profile per host. A future Raspberry Pi that runs both OpenVPN client and server roles should use two isolated watchdog instances; implement that extension only when such a host exists.
+
 ## Required backup point
 
 Before reconciliation changes beyond these planning files:
@@ -615,9 +699,16 @@ Status: completed and verified.
 
 - User clarified that general chapters should not call out host-by-host test history and asked how to discover an existing legacy boot-email mechanism. Removed the unnecessary hostname-specific paragraph, added reusable legacy-discovery commands and recorded the rule in `AGENTS.md`.
 - User approved the completed reusable boot-report scope. Committed the chapter, assets and permanent documentation rule locally after staged scope, executable-mode, whitespace and sensitive-data checks passed. Nothing was pushed or deployed.
+- Completed the read-only OpenVPN client-watchdog comparison. Recorded the reusable health checks, bounded recovery behavior, notification requirements and reboot-suppression boundaries without changing repository implementation files or any Raspberry Pi.
+- User approved reboot-off reusable defaults and defined separate Raspi3-02 client and Raspi4 server policies. Prepared the inactive VPN-watchdog chapter and assets; no Raspberry Pi, OpenVPN service, timer or reboot state was changed.
+- Simplified the VPN-watchdog chapter after review so it remains practical for rebuilding the owner's hosts and does not mix live-agent approval gates into ordinary reader instructions.
+- Clarified the VPN-watchdog file-transfer assumption: the Raspberry Pi may use a full repository clone or a copied watchdog asset directory.
+- Recorded the legacy username references in the 2FA chapter and archived Pi-hole guide for later focused cleanup; they remain outside this commit.
+- Final VPN-watchdog validation passed for Bash syntax, both role configurations, Markdown fences, relative links, whitespace, LF line endings, staged executable modes and prohibited identifier patterns. Committed the focused scope locally; nothing was pushed or deployed.
 
 ## Next controlled chunk
 
-1. Perform the next read-only source comparison for reusable OpenVPN client health monitoring, bounded recovery and reboot suppression.
-2. Decide later, per device, whether proven recovery justifies enabling the available conditional 04:45 reboot profile.
-3. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or push.
+1. Perform the planned read-only audit of the general OpenVPN server setup: compare `chapters/vpn.md`, `src/vpn/openvpn-install.sh` and the archived fully manual method without merging their approaches blindly.
+2. Present the server-setup findings and a small set of decisions before editing those files.
+3. Decide later, per device, whether proven recovery justifies enabling either the VPN-watchdog reboot fallback or the available conditional 04:45 update reboot profile.
+4. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or push.

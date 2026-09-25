@@ -1,0 +1,20 @@
+[Unit]
+Description=Check OpenVPN health and apply bounded recovery policy
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/etc/raspi-vpn-watchdog/vpn-watchdog.conf
+ConditionPathExists=/usr/local/sbin/raspi-notify
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/raspi-vpn-watchdog --run
+TimeoutStartSec=180
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+RuntimeDirectory=raspi-vpn-watchdog
+RuntimeDirectoryMode=0755
+StateDirectory=raspi-vpn-watchdog
+StateDirectoryMode=0700
+ReadWritePaths=/run/lock /var/spool/raspi-notify
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK

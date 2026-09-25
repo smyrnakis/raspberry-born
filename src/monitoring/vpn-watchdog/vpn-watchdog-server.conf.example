@@ -1,0 +1,25 @@
+# Server profile. Copy to the ignored vpn-watchdog.conf and adjust locally.
+ROLE=server
+VPN_SERVICE=openvpn-server@server.service
+VPN_INTERFACE=tun0
+EXPECTED_TUNNEL_CIDR=
+VPN_PEER=
+SERVER_PROTOCOL=udp
+SERVER_PORT=1194
+
+INTERNET_CHECK_URLS=https://cloudflare.com/cdn-cgi/trace https://www.google.com/generate_204
+INTERNET_CONNECT_TIMEOUT=3
+INTERNET_MAX_TIME=8
+
+# Multiple notices precede the optional 12-hour reboot threshold.
+FAILURE_NOTIFY_SECONDS=600
+REMINDER_SECONDS=3600 21600 39600
+RESTART_SECONDS=600 1800 3600
+RESTART_SETTLE_SECONDS=25
+ALLOW_SERVICE_RESTART=false
+
+ALLOW_REBOOT=false
+REBOOT_AFTER_SECONDS=43200
+REBOOT_MIN_INTERVAL_SECONDS=43200
+SUPPRESS_REBOOT_WHEN_LOGGED_IN=true
+REBOOT_INHIBIT_FILE=/run/raspi-vpn-watchdog/no-reboot

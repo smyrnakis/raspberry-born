@@ -1,0 +1,398 @@
+#!/bin/bash
+set -uo pipefail
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CONFIG_FILE=${RASPI_VPN_WATCHDOG_CONFIG:-/etc/raspi-vpn-watchdog/vpn-watchdog.conf}
+NOTIFY=/usr/local/sbin/raspi-notify
+RUNTIME_DIR=/run/raspi-vpn-watchdog
+STATE_DIR=/var/lib/raspi-vpn-watchdog
+LOCK_FILE=/run/lock/raspi-vpn-watchdog.lock
+LOG_TAG=raspi-vpn-watchdog
+
+ROLE=
+VPN_SERVICE=
+VPN_INTERFACE=
+EXPECTED_TUNNEL_CIDR=
+VPN_PEER=
+SERVER_PROTOCOL=udp
+SERVER_PORT=1194
+INTERNET_CHECK_URLS="https://cloudflare.com/cdn-cgi/trace https://www.google.com/generate_204"
+INTERNET_CONNECT_TIMEOUT=3
+INTERNET_MAX_TIME=8
+FAILURE_NOTIFY_SECONDS=600
+REMINDER_SECONDS="3600 21600 39600"
+RESTART_SECONDS="600 1800 3600"
+RESTART_SETTLE_SECONDS=25
+ALLOW_SERVICE_RESTART=false
+ALLOW_REBOOT=false
+REBOOT_AFTER_SECONDS=43200
+REBOOT_MIN_INTERVAL_SECONDS=43200
+SUPPRESS_REBOOT_WHEN_LOGGED_IN=true
+REBOOT_INHIBIT_FILE=/run/raspi-vpn-watchdog/no-reboot
+
+usage() {
+    echo "Usage: $0 [--validate-config|--check|--run|--simulate-failure|--simulate-recovery]" >&2
+    exit 2
+}
+
+mode=${1:---check}
+[[ $# -le 1 ]] || usage
+case "$mode" in
+    --validate-config|--check|--run|--simulate-failure|--simulate-recovery) ;;
+    *) usage ;;
+esac
+
+load_config() {
+    local key value
+    [[ -r $CONFIG_FILE ]] || { echo "Cannot read configuration: $CONFIG_FILE" >&2; return 1; }
+    while IFS='=' read -r key value || [[ -n ${key:-}${value:-} ]]; do
+        key=${key%$'\r'}
+        value=${value%$'\r'}
+        [[ -z $key || $key == \#* ]] && continue
+        case "$key" in
+            ROLE|VPN_SERVICE|VPN_INTERFACE|EXPECTED_TUNNEL_CIDR|VPN_PEER|\
+            SERVER_PROTOCOL|SERVER_PORT|INTERNET_CHECK_URLS|\
+            INTERNET_CONNECT_TIMEOUT|INTERNET_MAX_TIME|FAILURE_NOTIFY_SECONDS|\
+            REMINDER_SECONDS|RESTART_SECONDS|RESTART_SETTLE_SECONDS|\
+            ALLOW_SERVICE_RESTART|ALLOW_REBOOT|REBOOT_AFTER_SECONDS|REBOOT_MIN_INTERVAL_SECONDS|\
+            SUPPRESS_REBOOT_WHEN_LOGGED_IN|REBOOT_INHIBIT_FILE)
+                printf -v "$key" '%s' "$value"
+                ;;
+            *) echo "Unknown setting in $CONFIG_FILE: $key" >&2; return 1 ;;
+        esac
+    done <"$CONFIG_FILE"
+}
+
+positive_integer() {
+    [[ $1 =~ ^[1-9][0-9]*$ ]]
+}
+
+validate_config() {
+    local value previous=0 url
+    [[ $ROLE == client || $ROLE == server ]] || { echo "ROLE must be client or server" >&2; return 1; }
+    [[ $VPN_SERVICE =~ ^[A-Za-z0-9_.@-]+\.service$ ]] || { echo "Invalid VPN_SERVICE" >&2; return 1; }
+    [[ $VPN_INTERFACE =~ ^[A-Za-z0-9_.:-]+$ ]] || { echo "Invalid VPN_INTERFACE" >&2; return 1; }
+    [[ -z $EXPECTED_TUNNEL_CIDR || $EXPECTED_TUNNEL_CIDR =~ ^[0-9.]+/[0-9]{1,2}$ ]] || {
+        echo "Invalid EXPECTED_TUNNEL_CIDR" >&2; return 1;
+    }
+    [[ -z $VPN_PEER || $VPN_PEER =~ ^[A-Za-z0-9_.:-]+$ ]] || { echo "Invalid VPN_PEER" >&2; return 1; }
+    [[ $SERVER_PROTOCOL == udp || $SERVER_PROTOCOL == tcp ]] || { echo "SERVER_PROTOCOL must be udp or tcp" >&2; return 1; }
+    [[ $SERVER_PORT =~ ^[0-9]+$ ]] && (( SERVER_PORT >= 1 && SERVER_PORT <= 65535 )) || {
+        echo "SERVER_PORT must be from 1 to 65535" >&2; return 1;
+    }
+    for value in "$INTERNET_CONNECT_TIMEOUT" "$INTERNET_MAX_TIME" "$FAILURE_NOTIFY_SECONDS" \
+        "$RESTART_SETTLE_SECONDS" "$REBOOT_AFTER_SECONDS" "$REBOOT_MIN_INTERVAL_SECONDS"; do
+        positive_integer "$value" || { echo "Invalid positive integer: $value" >&2; return 1; }
+    done
+    (( INTERNET_CONNECT_TIMEOUT <= INTERNET_MAX_TIME )) || {
+        echo "INTERNET_CONNECT_TIMEOUT exceeds INTERNET_MAX_TIME" >&2; return 1;
+    }
+    [[ $ALLOW_REBOOT == true || $ALLOW_REBOOT == false ]] || { echo "ALLOW_REBOOT must be true or false" >&2; return 1; }
+    [[ $ALLOW_SERVICE_RESTART == true || $ALLOW_SERVICE_RESTART == false ]] || {
+        echo "ALLOW_SERVICE_RESTART must be true or false" >&2; return 1;
+    }
+    [[ $SUPPRESS_REBOOT_WHEN_LOGGED_IN == true || $SUPPRESS_REBOOT_WHEN_LOGGED_IN == false ]] || {
+        echo "SUPPRESS_REBOOT_WHEN_LOGGED_IN must be true or false" >&2; return 1;
+    }
+    [[ $REBOOT_INHIBIT_FILE == /* && $REBOOT_INHIBIT_FILE != / ]] || { echo "Invalid REBOOT_INHIBIT_FILE" >&2; return 1; }
+    [[ -n $INTERNET_CHECK_URLS ]] || { echo "INTERNET_CHECK_URLS is empty" >&2; return 1; }
+    for url in $INTERNET_CHECK_URLS; do
+        [[ $url =~ ^https://[^[:space:]]+$ ]] || { echo "Invalid Internet-check URL: $url" >&2; return 1; }
+    done
+    previous=0
+    [[ -n $REMINDER_SECONDS ]] || { echo "REMINDER_SECONDS is empty" >&2; return 1; }
+    for value in $REMINDER_SECONDS; do
+        positive_integer "$value" && (( value > previous && value < REBOOT_AFTER_SECONDS )) || {
+            echo "REMINDER_SECONDS must increase and remain below REBOOT_AFTER_SECONDS" >&2; return 1;
+        }
+        previous=$value
+    done
+    previous=0
+    [[ -n $RESTART_SECONDS ]] || { echo "RESTART_SECONDS is empty" >&2; return 1; }
+    for value in $RESTART_SECONDS; do
+        positive_integer "$value" && (( value > previous )) || { echo "RESTART_SECONDS must increase" >&2; return 1; }
+        previous=$value
+    done
+    if [[ $ROLE == client ]]; then
+        [[ -n $VPN_PEER ]] || { echo "VPN_PEER is required for ROLE=client" >&2; return 1; }
+    fi
+    (( FAILURE_NOTIFY_SECONDS < REBOOT_AFTER_SECONDS )) || {
+        echo "FAILURE_NOTIFY_SECONDS must be below REBOOT_AFTER_SECONDS" >&2; return 1;
+    }
+}
+
+load_config || exit 1
+validate_config || exit 1
+[[ $mode != --validate-config ]] || { echo "Configuration is valid: $CONFIG_FILE"; exit 0; }
+
+host=$(hostname --short)
+health_class=healthy
+health_detail=healthy
+service_active=false
+
+inspect_health() {
+    local active_state main_pid socket_output
+    health_class=healthy
+    health_detail=healthy
+    service_active=false
+
+    active_state=$(timeout 10 systemctl is-active "$VPN_SERVICE" 2>/dev/null || true)
+    if [[ $active_state == active ]]; then
+        service_active=true
+    elif [[ $ROLE == client ]]; then
+        main_pid=$(timeout 10 systemctl show --property=MainPID --value "$VPN_SERVICE" 2>/dev/null || true)
+        if [[ $main_pid =~ ^[1-9][0-9]*$ && -d /proc/$main_pid ]]; then
+            service_active=true
+        else
+            health_class=local-service-failure
+            health_detail="$VPN_SERVICE has no running OpenVPN process (state ${active_state:-unknown})"
+            return 1
+        fi
+    else
+        health_class=local-service-failure
+        health_detail="$VPN_SERVICE is not active (state ${active_state:-unknown})"
+        return 1
+    fi
+
+    if ! ip link show dev "$VPN_INTERFACE" >/dev/null 2>&1; then
+        if [[ $ROLE == server ]]; then health_class=local-service-failure; else health_class=tunnel-unavailable; fi
+        health_detail="interface $VPN_INTERFACE is absent"
+        return 1
+    fi
+    if [[ -n $EXPECTED_TUNNEL_CIDR ]] &&
+        ! ip -4 -o address show dev "$VPN_INTERFACE" | awk '{print $4}' | grep -Fxq "$EXPECTED_TUNNEL_CIDR"; then
+        if [[ $ROLE == server ]]; then health_class=local-service-failure; else health_class=tunnel-unavailable; fi
+        health_detail="$VPN_INTERFACE does not have $EXPECTED_TUNNEL_CIDR"
+        return 1
+    fi
+
+    if [[ $ROLE == client ]]; then
+        if ! timeout 12 ping -n -q -I "$VPN_INTERFACE" -c 3 -W 3 "$VPN_PEER" >/dev/null 2>&1; then
+            health_class=tunnel-unavailable
+            health_detail="VPN peer $VPN_PEER is unreachable through $VPN_INTERFACE"
+            return 1
+        fi
+    else
+        if [[ $SERVER_PROTOCOL == udp ]]; then
+            socket_output=$(timeout 10 ss -H -lun "sport = :$SERVER_PORT" 2>/dev/null || true)
+        else
+            socket_output=$(timeout 10 ss -H -ltn "sport = :$SERVER_PORT" 2>/dev/null || true)
+        fi
+        if [[ -z $socket_output ]]; then
+            health_class=local-service-failure
+            health_detail="no $SERVER_PROTOCOL listening socket on port $SERVER_PORT"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+internet_available() {
+    local url
+    for url in $INTERNET_CHECK_URLS; do
+        if timeout "$((INTERNET_MAX_TIME + 2))" curl -4fsS -o /dev/null \
+            --connect-timeout "$INTERNET_CONNECT_TIMEOUT" --max-time "$INTERNET_MAX_TIME" "$url"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+queue_notice() {
+    local subject=$1 body=$2 key=${3:-}
+    [[ -x $NOTIFY ]] || { logger -t "$LOG_TAG" "Cannot queue notification: $NOTIFY is missing"; return 1; }
+    if [[ -n $key ]]; then
+        printf '%s\n' "$body" | "$NOTIFY" --key "$key" "$subject"
+    else
+        printf '%s\n' "$body" | "$NOTIFY" "$subject"
+    fi
+}
+
+if [[ $mode == --simulate-failure ]]; then
+    queue_notice "[$host] OpenVPN watchdog test failure" \
+        "This is a notification-only simulation. No service was restarted and no reboot was requested."
+    echo "Queued simulated failure notification"
+    exit 0
+elif [[ $mode == --simulate-recovery ]]; then
+    queue_notice "[$host] OpenVPN watchdog test recovery" \
+        "This is a notification-only simulation. No service was restarted and no reboot was requested."
+    echo "Queued simulated recovery notification"
+    exit 0
+fi
+
+if inspect_health; then
+    if [[ $mode == --check ]]; then
+        echo "healthy: role=$ROLE service=$VPN_SERVICE interface=$VPN_INTERFACE"
+        exit 0
+    fi
+else
+    if [[ $mode == --check ]]; then
+        internet_state=unavailable
+        internet_available && internet_state=available
+        echo "unhealthy: class=$health_class detail=$health_detail internet=$internet_state"
+        exit 1
+    fi
+fi
+
+[[ $EUID -eq 0 ]] || { echo "Run --run with sudo" >&2; exit 1; }
+install -d -o root -g root -m 755 "$RUNTIME_DIR"
+install -d -o root -g root -m 700 "$STATE_DIR"
+exec 9>"$LOCK_FILE"
+flock -n 9 || exit 0
+
+clear_runtime_state() {
+    find "$RUNTIME_DIR" -mindepth 1 -maxdepth 1 -type f -delete
+}
+
+if [[ $health_class == healthy ]]; then
+    if [[ -f $RUNTIME_DIR/alerted ]]; then
+        started=$(cat "$RUNTIME_DIR/first-failure" 2>/dev/null || echo unknown)
+        queue_notice "[$host] OpenVPN recovered" \
+            "OpenVPN health checks recovered. The failure began at epoch $started. No watchdog reboot is required." || exit 1
+        logger -t "$LOG_TAG" "OpenVPN health recovered"
+    fi
+    clear_runtime_state
+    exit 0
+fi
+
+now=$(date +%s)
+if [[ ! -f $RUNTIME_DIR/first-failure ]]; then
+    printf '%s\n' "$now" >"$RUNTIME_DIR/first-failure"
+    printf '%s\n' "$health_class" >"$RUNTIME_DIR/first-class"
+fi
+first_failure=$(cat "$RUNTIME_DIR/first-failure")
+[[ $first_failure =~ ^[0-9]+$ ]] || { first_failure=$now; printf '%s\n' "$now" >"$RUNTIME_DIR/first-failure"; }
+elapsed=$((now - first_failure))
+internet_state=unavailable
+internet_available && internet_state=available
+
+failure_body="Host: $host
+Role: $ROLE
+Service: $VPN_SERVICE
+Failure class: $health_class
+Detail: $health_detail
+Failure duration: ${elapsed} seconds
+Independent Internet check: $internet_state
+Automatic service restart enabled: $ALLOW_SERVICE_RESTART
+Automatic reboot enabled: $ALLOW_REBOOT"
+
+if (( elapsed >= FAILURE_NOTIFY_SECONDS )) && [[ ! -f $RUNTIME_DIR/alerted ]]; then
+    if queue_notice "[$host] OpenVPN failure" "$failure_body"; then
+        : >"$RUNTIME_DIR/alerted"
+    fi
+fi
+
+for threshold in $REMINDER_SECONDS; do
+    marker=$RUNTIME_DIR/reminder-$threshold
+    if (( elapsed >= threshold )) && [[ ! -f $marker ]]; then
+        if queue_notice "[$host] OpenVPN still unhealthy after $((threshold / 3600))h" "$failure_body"; then
+            : >"$marker"
+        fi
+    fi
+done
+
+if [[ $health_class == local-service-failure ]]; then
+    if [[ ! -f $RUNTIME_DIR/local-failure-start ]]; then
+        printf '%s\n' "$now" >"$RUNTIME_DIR/local-failure-start"
+    fi
+    local_failure_start=$(cat "$RUNTIME_DIR/local-failure-start")
+    [[ $local_failure_start =~ ^[0-9]+$ ]] || local_failure_start=$now
+    local_elapsed=$((now - local_failure_start))
+else
+    rm -f -- "$RUNTIME_DIR/local-failure-start" "$RUNTIME_DIR/restart-disabled-notified"
+    find "$RUNTIME_DIR" -mindepth 1 -maxdepth 1 -type f -name 'restart-*' -delete
+    local_elapsed=0
+fi
+
+if [[ $health_class == local-service-failure && $ALLOW_SERVICE_RESTART == true ]]; then
+    for threshold in $RESTART_SECONDS; do
+        marker=$RUNTIME_DIR/restart-$threshold
+        if (( local_elapsed >= threshold )) && [[ ! -f $marker ]]; then
+            : >"$marker"
+            logger -t "$LOG_TAG" "Restarting $VPN_SERVICE after ${local_elapsed}s of local failure"
+            timeout 90 systemctl restart "$VPN_SERVICE" || true
+            sleep "$RESTART_SETTLE_SECONDS"
+            if inspect_health; then
+                queue_notice "[$host] OpenVPN recovered after service restart" \
+                    "The watchdog restarted $VPN_SERVICE after a confirmed local service failure. Health checks now pass. No reboot is required." || exit 1
+                clear_runtime_state
+                exit 0
+            fi
+            break
+        fi
+    done
+elif [[ $health_class == local-service-failure && $elapsed -ge $FAILURE_NOTIFY_SECONDS && ! -f $RUNTIME_DIR/restart-disabled-notified ]]; then
+    if queue_notice "[$host] OpenVPN automatic restart remains disabled" \
+        "$failure_body
+
+The local service is unhealthy, but ALLOW_SERVICE_RESTART=false."; then
+        : >"$RUNTIME_DIR/restart-disabled-notified"
+    fi
+fi
+
+(( elapsed >= REBOOT_AFTER_SECONDS )) || exit 0
+
+if [[ $ALLOW_REBOOT != true ]]; then
+    if [[ ! -f $RUNTIME_DIR/reboot-disabled-notified ]]; then
+        if queue_notice "[$host] OpenVPN reboot remains disabled" \
+            "$failure_body
+
+The reboot threshold was reached, but ALLOW_REBOOT=false."; then
+            : >"$RUNTIME_DIR/reboot-disabled-notified"
+        fi
+    fi
+    exit 0
+fi
+
+if [[ $ROLE == client && $service_active == true && $internet_state == available ]]; then
+    if [[ ! -f $RUNTIME_DIR/remote-path-notified ]]; then
+        if queue_notice "[$host] OpenVPN reboot suppressed: client is running" \
+            "$failure_body
+
+The OpenVPN client process and ordinary Internet access are working. The remote VPN endpoint or path may be unavailable, so the client will keep retrying without a reboot."; then
+            : >"$RUNTIME_DIR/remote-path-notified"
+        fi
+    fi
+    exit 0
+fi
+
+if [[ -e $REBOOT_INHIBIT_FILE ]]; then
+    queue_notice "[$host] OpenVPN reboot suppressed by inhibit file" \
+        "$failure_body
+
+Remove $REBOOT_INHIBIT_FILE only after reviewing the fault." \
+        vpn-watchdog-reboot-inhibited
+    exit 0
+fi
+
+if [[ $SUPPRESS_REBOOT_WHEN_LOGGED_IN == true ]] && who | grep -q .; then
+    queue_notice "[$host] OpenVPN reboot suppressed: user logged in" \
+        "$failure_body
+
+The watchdog will reconsider after interactive sessions end." \
+        vpn-watchdog-reboot-session
+    exit 0
+fi
+
+last_reboot=$(cat "$STATE_DIR/last-reboot" 2>/dev/null || echo 0)
+[[ $last_reboot =~ ^[0-9]+$ ]] || last_reboot=0
+if (( now - last_reboot < REBOOT_MIN_INTERVAL_SECONDS )); then
+    queue_notice "[$host] OpenVPN reboot rate-limited" \
+        "$failure_body
+
+The previous watchdog reboot is inside the minimum interval." \
+        vpn-watchdog-reboot-rate-limit
+    exit 0
+fi
+
+queue_notice "[$host] OpenVPN watchdog is rebooting the host" \
+    "$failure_body
+
+All configured safeguards passed. A reboot is being requested now." || {
+        logger -t "$LOG_TAG" "Reboot suppressed because the pre-reboot notification could not be queued"
+        exit 0
+    }
+printf '%s\n' "$now" >"$STATE_DIR/last-reboot"
+sync
+logger -t "$LOG_TAG" "Requesting reboot after ${elapsed}s of OpenVPN failure"
+systemctl reboot

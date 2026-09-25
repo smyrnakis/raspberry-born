@@ -53,6 +53,8 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 
 [OpenVPN server](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn.md) - install & configure an *OpenVPN* server that can work together with *Pi-hole*
 
+[OpenVPN health watchdog](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn-watchdog.md) - monitor client or server health with durable alerts and bounded recovery
+
 [OpenVPN site-to-site: Athens-Crete](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn_crete-athens.md) - route authenticated VPN clients to the Crete LAN through Raspi3-02
 
 [Pi-hole](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/pihole.md) - install & configure *Pi-hole* ad-blocker (better install *Pi-hole* **after** installing *OpenVPN*)
