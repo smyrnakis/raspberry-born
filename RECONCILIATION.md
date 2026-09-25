@@ -35,20 +35,21 @@ Audit date: 2026-09-19
 
 ## Current integration state
 
-As of 2026-09-24 after the approved automatic-updates commit:
+As of 2026-09-25 after the approved boot-report commit:
 
 - Reconciliation branch: `codex/reconcile-2026-09-19`.
 - The branch is based on `origin/main` at `2086acc` and contains the planning checkpoint plus focused reconciliation commits.
 - The three reviewed remote commits are now present in the branch history.
 - Local `main` remains unchanged at `e88de61`.
 - Nothing has been pushed.
-- The tracked working tree is clean.
+- The automatic-updates and boot-report commits are complete.
 - The deferred untracked chapters remain present: `grafana.md` and `mosquitto.md`.
-- The durable notification, hardware-watchdog, UPS and automatic-updates changes are committed locally in separate focused commits. None has been deployed.
+- The durable notification, hardware-watchdog, UPS, automatic-updates and boot-report changes are committed locally in separate focused commits. None has been deployed.
 
 ## Confirmed project decisions
 
 - The repository should read as a step-by-step guide tailored to the owner's systems but understandable by anyone.
+- General chapters should not mention that one hostname tested a procedure while others did not unless that fact changes compatibility, safety or the instructions. Keep device-specific deployment evidence in its runbook or this ledger.
 - Hostnames and private LAN or VPN address ranges may be committed.
 - MAC addresses, personal email addresses and public DDNS names must not be committed.
 - Passwords, tokens, VPN profiles and private keys must never be committed.
@@ -466,6 +467,65 @@ Implementation prepared for review:
 - Moved the weekly report window to Sunday after 06:15 so it does not compete with an optional 04:45 reboot.
 - Git Bash syntax, whitespace, Markdown fence, local-link, LF and prohibited-identifier checks passed locally. Native APT parsing, systemd verification, dry-run and notification tests remain Raspberry Pi pre-deployment checks.
 
+### Boot-report replacement assessment
+
+Status: approved and committed locally in a focused boot-report commit on 2026-09-25; not deployed.
+
+Older boot-email approach:
+
+- uses a Python script launched from `/etc/rc.local`
+- hardcodes a personal home-directory path and recipient address
+- depends on `requests` and `netifaces` for information available from standard system commands
+- sends directly through `msmtp`, so a temporary network or SMTP failure can lose the boot report
+- writes a separate log under the user's home directory and does not reliably interpret the mail process exit status
+- queries an external public-IP service unconditionally
+
+Requirements recovered from the earlier boot-email discussion:
+
+- send one plain-text report after every boot
+- include hostname, local address, public address, boot time and CPU temperature
+- avoid loopback addresses and the incorrect 1970 boot time seen when networking and time synchronization were not ready
+- run under systemd after network readiness and use the journal for troubleshooting rather than `/etc/rc.local` and a home-directory log
+- avoid the previous root-versus-user `msmtp` configuration problem; the durable system queue now owns transport configuration
+
+Verified Raspi3-02 approach:
+
+- runs once per boot as a bounded systemd oneshot
+- waits for basic network and VPN readiness without blocking indefinitely
+- uses the durable `raspi-notify` queue
+- reports host, boot, OS, kernel, network, VPN, camera, temperature, load, memory, storage, throttling, reboot-required and failed-unit state
+- is deployed successfully but hardcodes the Raspi3-02 VPN instance, tunnel address, peer, site configuration path and camera behavior
+- discovers the camera by a local MAC address and includes that MAC in the report; this is valid local runtime data but must not be copied into the public repository
+- queries an external public-IP service, which should be optional because it creates an external dependency and discloses the source address to that service
+
+Recommended reusable design:
+
+- provide a general `raspi-boot-report` command and systemd oneshot under `src/monitoring/boot-report/`
+- send through `raspi-notify`; never embed a recipient or call `msmtp` directly
+- keep the core report dependency-free and include host, boot, OS, kernel, local network, temperature, load, memory, root storage, throttling, reboot-required and failed-unit state
+- make service, interface, peer and public-IP checks optional through a root-owned local configuration that is ignored by Git
+- keep camera discovery and other Raspi3-02-only checks in its device runbook or as explicit optional checks, not in the general defaults
+- use a read-only-by-default installer with explicit apply, timestamped backup and rollback; do not enable or start the boot service during installation
+- document activation, a safe manual simulation, expected results and rollback in a dedicated general chapter
+
+Approved public-IP behavior:
+
+- Enable public IPv4 lookup by default, as requested by the user on 2026-09-24.
+- Use `https://cloudflare.com/cdn-cgi/trace`, force IPv4 and parse only the `ip=` field.
+- Limit the connection attempt to 3 seconds and the complete request to 8 seconds.
+- Treat lookup failure as `unavailable`; it must not fail or suppress the rest of the report.
+- Explain that the request exposes the public source address to Cloudflare and provide a local `PUBLIC_IP_LOOKUP=false` opt-out.
+
+Implementation prepared for review:
+
+- Added a reusable Bash report, systemd oneshot, strict configuration example, safe installer and focused asset README under `src/monitoring/boot-report/`.
+- Added a step-by-step chapter covering legacy discovery, prerequisites, default Cloudflare lookup, optional service and peer checks, read-only validation, installation, preview, delivery test, activation, real-boot verification, legacy retirement and rollback.
+- The core report includes host, time, OS, kernel, local and public network state, temperature, load, memory, root storage, throttling, reboot-required state and failed systemd units without Python dependencies.
+- Device-specific services and peers remain in an ignored local configuration. Camera MAC discovery is deliberately excluded from the general implementation.
+- The installer defaults to read-only validation, uses timestamped allowlisted backups and automatic failure rollback, and does not enable or start the service, contact Cloudflare, send a notification, restart another service or reboot.
+- Bash parsing, a no-network preview smoke test, Markdown fences, local links, whitespace, LF and sensitive-data pattern checks passed locally. Native systemd verification, Cloudflare lookup, notification delivery and real-boot behavior remain Raspberry Pi pre-deployment checks.
+- Removed device-specific deployment-history wording from the general chapter and expanded legacy discovery with read-only systemd, `rc.local`, cron and script-location checks plus candidate-unit inspection.
+
 ## Required backup point
 
 Before reconciliation changes beyond these planning files:
@@ -548,9 +608,16 @@ Status: completed and verified.
 - Prepared the replacement automatic-updates chapter and focused `src/maintenance/updates/` assets. No package, service, APT metadata, reboot state or Raspberry Pi was changed.
 - User requested a prominent notification prerequisite and a complete opt-in procedure for the conditional 04:45 reboot. Added the documented workflow and repository assets; the reboot profile remains disabled by default and has not been deployed.
 - User approved the completed automatic-updates scope. Committed it locally as a separate focused change after staged content, executable modes, whitespace and sensitive-data checks passed. Nothing was pushed or deployed.
+- Completed a read-only comparison of the old Python boot-email files and the verified Raspi3-02 boot report. Recorded the reusable design boundaries without importing files, exposing local identifiers or changing a Raspberry Pi.
+- User approved the reusable boot-report plan with public-IP lookup enabled by default and requested a safe provider such as Cloudflare. Prepared the generalized chapter and assets without contacting or changing a Raspberry Pi.
+
+### 2026-09-25
+
+- User clarified that general chapters should not call out host-by-host test history and asked how to discover an existing legacy boot-email mechanism. Removed the unnecessary hostname-specific paragraph, added reusable legacy-discovery commands and recorded the rule in `AGENTS.md`.
+- User approved the completed reusable boot-report scope. Committed the chapter, assets and permanent documentation rule locally after staged scope, executable-mode, whitespace and sensitive-data checks passed. Nothing was pushed or deployed.
 
 ## Next controlled chunk
 
-1. Review the next reusable Raspi3-02 component separately, starting with boot reporting and its integration with the durable notification queue.
+1. Perform the next read-only source comparison for reusable OpenVPN client health monitoring, bounded recovery and reboot suppression.
 2. Decide later, per device, whether proven recovery justifies enabling the available conditional 04:45 reboot profile.
 3. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or push.

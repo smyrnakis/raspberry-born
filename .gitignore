@@ -14,3 +14,4 @@ src/vpn/OpenVPN-email_*
 src/vpn/site-to-site/site.conf
 src/notify/notify.conf
 src/ups/ups-monitor.conf
+src/monitoring/boot-report/boot-report.conf

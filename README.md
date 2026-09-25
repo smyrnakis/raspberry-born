@@ -39,6 +39,8 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 
 [Backup the Raspberry pi](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/backup.md) - manual or automatic backup of microSD card
 
+[Boot report](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/boot-report.md) - send a durable system and network summary after each boot
+
 [Dynamic DNS (ddclient & noip DUC)](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/dynamic-dns.md) - install & configure *ddclient* or *noip DUC*
 
 [Email notifications](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/email.md) - Configure `msmtp` with a durable local notification queue

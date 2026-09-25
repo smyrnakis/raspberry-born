@@ -1,0 +1,272 @@
+#!/bin/bash
+set -uo pipefail
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CONFIG_FILE=${RASPI_BOOT_REPORT_CONFIG:-/etc/raspi-boot-report/boot-report.conf}
+NOTIFY=/usr/local/sbin/raspi-notify
+LOG_TAG=raspi-boot-report
+
+PUBLIC_IP_LOOKUP=true
+PUBLIC_IP_URL=https://cloudflare.com/cdn-cgi/trace
+NETWORK_WAIT_SECONDS=120
+CHECK_SERVICES=""
+CHECK_PEERS=""
+
+usage() {
+    echo "Usage: $0 [--preview|--send]" >&2
+    exit 2
+}
+
+mode=${1:---preview}
+[[ $# -le 1 ]] || usage
+case "$mode" in --preview|--send) ;; *) usage ;; esac
+
+load_config() {
+    local key value
+    [[ -r $CONFIG_FILE ]] || {
+        echo "Cannot read configuration: $CONFIG_FILE" >&2
+        return 1
+    }
+    while IFS='=' read -r key value || [[ -n ${key:-}${value:-} ]]; do
+        key=${key%$'\r'}
+        value=${value%$'\r'}
+        [[ -z $key || $key == \#* ]] && continue
+        case "$key" in
+            PUBLIC_IP_LOOKUP) PUBLIC_IP_LOOKUP=$value ;;
+            PUBLIC_IP_URL) PUBLIC_IP_URL=$value ;;
+            NETWORK_WAIT_SECONDS) NETWORK_WAIT_SECONDS=$value ;;
+            CHECK_SERVICES) CHECK_SERVICES=$value ;;
+            CHECK_PEERS) CHECK_PEERS=$value ;;
+            *) echo "Unknown setting in $CONFIG_FILE: $key" >&2; return 1 ;;
+        esac
+    done <"$CONFIG_FILE"
+}
+
+validate_config() {
+    local service pair label target
+    [[ $PUBLIC_IP_LOOKUP == true || $PUBLIC_IP_LOOKUP == false ]] || {
+        echo "PUBLIC_IP_LOOKUP must be true or false" >&2
+        return 1
+    }
+    [[ $NETWORK_WAIT_SECONDS =~ ^[0-9]+$ ]] && (( NETWORK_WAIT_SECONDS <= 300 )) || {
+        echo "NETWORK_WAIT_SECONDS must be an integer from 0 to 300" >&2
+        return 1
+    }
+    if [[ $PUBLIC_IP_LOOKUP == true ]]; then
+        [[ $PUBLIC_IP_URL =~ ^https://[^[:space:]]+$ ]] || {
+            echo "PUBLIC_IP_URL must be an HTTPS URL without spaces" >&2
+            return 1
+        }
+    fi
+    for service in $CHECK_SERVICES; do
+        [[ $service =~ ^[A-Za-z0-9_.@-]+$ ]] || {
+            echo "Invalid systemd unit name: $service" >&2
+            return 1
+        }
+    done
+    for pair in $CHECK_PEERS; do
+        [[ $pair == *=* ]] || { echo "Invalid peer check: $pair" >&2; return 1; }
+        label=${pair%%=*}
+        target=${pair#*=}
+        [[ $label =~ ^[A-Za-z0-9_.-]+$ && $target =~ ^[A-Za-z0-9_.:-]+$ ]] || {
+            echo "Invalid peer check: $pair" >&2
+            return 1
+        }
+    done
+}
+
+load_config || exit 1
+validate_config || exit 1
+
+if [[ $mode == --send && $EUID -ne 0 ]]; then
+    echo "Run --send with sudo" >&2
+    exit 1
+fi
+
+wait_for_network() {
+    local deadline host
+    (( NETWORK_WAIT_SECONDS > 0 )) || return 0
+    deadline=$((SECONDS + NETWORK_WAIT_SECONDS))
+    host=${PUBLIC_IP_URL#*://}
+    host=${host%%/*}
+    while (( SECONDS < deadline )); do
+        if ip -4 route show default | grep -q .; then
+            if [[ $PUBLIC_IP_LOOKUP == false ]] || getent ahostsv4 "$host" >/dev/null 2>&1; then
+                return 0
+            fi
+        fi
+        sleep 5
+    done
+    return 1
+}
+
+is_ipv4() {
+    awk -F. '
+        NF != 4 { exit 1 }
+        {
+            for (i = 1; i <= 4; i++) {
+                if ($i !~ /^[0-9]+$/ || $i < 0 || $i > 255) exit 1
+            }
+        }
+    ' <<<"$1"
+}
+
+get_public_ipv4() {
+    local response candidate
+    [[ $PUBLIC_IP_LOOKUP == true ]] || { echo disabled; return; }
+    response=$(curl -4fsS --connect-timeout 3 --max-time 8 "$PUBLIC_IP_URL" 2>/dev/null) || {
+        echo unavailable
+        return
+    }
+    candidate=$(sed -n 's/^ip=//p' <<<"$response" | head -n 1)
+    [[ -n $candidate ]] || candidate=$(head -n 1 <<<"$response")
+    candidate=${candidate%$'\r'}
+    if is_ipv4 "$candidate"; then
+        echo "$candidate"
+    else
+        echo unavailable
+    fi
+}
+
+network_ready=yes
+wait_for_network || network_ready=no
+
+host=$(hostname --short)
+now=$(date -Is)
+boot_time=$(uptime -s 2>/dev/null || echo unavailable)
+uptime_pretty=$(uptime -p 2>/dev/null || echo unavailable)
+os_name=$(sed -n 's/^PRETTY_NAME="\(.*\)"/\1/p' /etc/os-release 2>/dev/null)
+kernel=$(uname -srmo)
+clock_sync=$(timedatectl show -p NTPSynchronized --value 2>/dev/null || echo unknown)
+local_addresses=$(ip -4 -o address show scope global 2>/dev/null |
+    awk '{printf "%s%s=%s", separator, $2, $4; separator=", "}')
+default_route=$(ip -4 route show default 2>/dev/null | head -n 1)
+public_ipv4=$(get_public_ipv4)
+
+if [[ -r /sys/class/thermal/thermal_zone0/temp ]]; then
+    cpu_temp=$(awk '{printf "%.1f C", $1/1000}' /sys/class/thermal/thermal_zone0/temp)
+else
+    cpu_temp=unavailable
+fi
+load_average=$(cut -d ' ' -f 1-3 /proc/loadavg 2>/dev/null || echo unavailable)
+memory_summary=$(free -h 2>/dev/null |
+    awk '/^Mem:/ {printf "used %s / total %s; available %s", $3, $2, $7}')
+root_summary=$(df -h / 2>/dev/null |
+    awk 'NR == 2 {printf "used %s / total %s (%s); available %s", $3, $2, $5, $4}')
+
+if command -v vcgencmd >/dev/null 2>&1; then
+    throttle_state=$(vcgencmd get_throttled 2>/dev/null || echo unavailable)
+else
+    throttle_state="vcgencmd unavailable"
+fi
+
+if [[ -e /run/reboot-required ]]; then
+    reboot_required=YES
+    if [[ -s /run/reboot-required.pkgs ]]; then
+        reboot_packages=$(sort -u /run/reboot-required.pkgs | paste -sd, -)
+    else
+        reboot_packages="not listed"
+    fi
+else
+    reboot_required=no
+    reboot_packages=none
+fi
+
+attention=0
+services_report="No optional services configured"
+if [[ -n $CHECK_SERVICES ]]; then
+    services_report=""
+    for service in $CHECK_SERVICES; do
+        service_active=$(systemctl is-active "$service" 2>/dev/null || true)
+        service_enabled=$(systemctl is-enabled "$service" 2>/dev/null || true)
+        services_report+=$(printf '%s: active=%s, enabled=%s\n' \
+            "$service" "${service_active:-unknown}" "${service_enabled:-unknown}")
+        services_report+=$'\n'
+        [[ $service_active == active ]] || attention=1
+    done
+fi
+
+peers_report="No optional peers configured"
+if [[ -n $CHECK_PEERS ]]; then
+    peers_report=""
+    for pair in $CHECK_PEERS; do
+        label=${pair%%=*}
+        target=${pair#*=}
+        if ping -n -q -c 1 -W 3 "$target" >/dev/null 2>&1; then
+            peer_state=reachable
+        else
+            peer_state=UNREACHABLE
+            attention=1
+        fi
+        peers_report+=$(printf '%s (%s): %s\n' "$label" "$target" "$peer_state")
+        peers_report+=$'\n'
+    done
+fi
+
+failed_units=$(systemctl --failed --no-legend --plain 2>/dev/null |
+    sed '/^[[:space:]]*$/d' || true)
+if [[ -z $failed_units ]]; then
+    failed_units=None
+else
+    attention=1
+fi
+[[ $network_ready == yes && -n $local_addresses && -n $default_route ]] || attention=1
+
+subject="[$host] Boot report"
+(( attention == 0 )) || subject="[$host] Boot report - ATTENTION"
+
+body=$(cat <<EOF
+BOOT REPORT
+===========
+Host:                       $host
+Generated:                  $now
+Boot time:                  $boot_time
+Uptime:                     $uptime_pretty
+Clock synchronized:         $clock_sync
+OS:                         ${os_name:-unavailable}
+Kernel:                     $kernel
+
+Network
+-------
+Ready within wait period:   $network_ready
+Local IPv4 addresses:       ${local_addresses:-unavailable}
+Default route:              ${default_route:-unavailable}
+Public IPv4:                $public_ipv4
+Public-IP provider:         $([[ $PUBLIC_IP_LOOKUP == true ]] && echo "$PUBLIC_IP_URL" || echo disabled)
+
+Optional service checks
+-----------------------
+$services_report
+
+Optional peer checks
+--------------------
+$peers_report
+
+System
+------
+CPU temperature:            $cpu_temp
+Load averages:              $load_average
+Memory:                     ${memory_summary:-unavailable}
+Root filesystem:            ${root_summary:-unavailable}
+Throttle state:             $throttle_state
+Reboot required:            $reboot_required
+Reboot-triggering packages: $reboot_packages
+
+Failed systemd units
+--------------------
+$failed_units
+EOF
+)
+
+if [[ $mode == --preview ]]; then
+    printf 'Subject: %s\n\n%s\n' "$subject" "$body"
+    exit 0
+fi
+
+[[ -x $NOTIFY ]] || { echo "Missing notification command: $NOTIFY" >&2; exit 1; }
+if ! printf '%s\n' "$body" | "$NOTIFY" "$subject"; then
+    logger -t "$LOG_TAG" "Failed to queue boot report"
+    exit 1
+fi
+logger -t "$LOG_TAG" "Queued boot report"
+echo "Queued boot report"

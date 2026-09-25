@@ -1,0 +1,19 @@
+[Unit]
+Description=Queue Raspberry Pi boot report
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/usr/local/sbin/raspi-notify
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/raspi-boot-report --send
+TimeoutStartSec=180
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/spool/raspi-notify /run/lock
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

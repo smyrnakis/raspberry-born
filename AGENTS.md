@@ -43,6 +43,7 @@ Use obvious placeholders for excluded values. Before importing a live configurat
 - Keep general scripts reusable. Store site-specific values in documented configuration templates rather than embedding them in scripts.
 - Link each operational chapter to its maintained scripts and configuration templates under `src/`.
 - Distinguish verified deployed behavior from proposed or untested instructions.
+- Keep device-specific deployment and validation history in the device runbook or reconciliation ledger. Mention it in a general chapter only when it changes compatibility, safety or the procedure.
 - Do not preserve obsolete instructions merely because they already exist. Mark or replace them deliberately after review.
 - Prefer the durable queued notification design over scripts that call SMTP directly. Migrate older notification instructions gradually and keep compatibility explicit during the transition.
 

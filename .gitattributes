@@ -2,3 +2,4 @@ src/vpn/site-to-site/* text eol=lf
 src/notify/* text eol=lf
 src/ups/* text eol=lf
 src/maintenance/updates/* text eol=lf
+src/monitoring/boot-report/* text eol=lf

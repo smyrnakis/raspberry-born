@@ -1,0 +1,14 @@
+# General boot-report settings. The installer uses this file when no local
+# boot-report.conf exists beside it.
+PUBLIC_IP_LOOKUP=true
+PUBLIC_IP_URL=https://cloudflare.com/cdn-cgi/trace
+NETWORK_WAIT_SECONDS=120
+
+# Optional whitespace-separated systemd units.
+# CHECK_SERVICES=ssh.service openvpn-client@CLIENT_NAME pihole-FTL.service
+CHECK_SERVICES=
+
+# Optional whitespace-separated LABEL=HOST pairs. Keep site-specific names and
+# public hostnames only in the ignored local boot-report.conf.
+# CHECK_PEERS=VPN_PEER=10.8.0.1 ROUTER=192.168.1.1
+CHECK_PEERS=
