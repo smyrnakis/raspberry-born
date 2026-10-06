@@ -1,0 +1,35 @@
+# OpenVPN server configuration for OpenVPN 2.6 or later.
+
+port 1194
+proto udp
+dev tun
+topology subnet
+server 10.8.0.0 255.255.255.0
+ifconfig-pool-persist /var/lib/openvpn/server/server-ipp.txt
+
+ca /etc/openvpn/server/ca.crt
+cert /etc/openvpn/server/server.crt
+key /etc/openvpn/server/server.key
+crl-verify /etc/openvpn/server/crl.pem
+dh none
+tls-crypt /etc/openvpn/server/tls-crypt.key
+tls-version-min 1.2
+remote-cert-tls client
+verify-client-cert require
+
+data-ciphers AES-256-GCM:AES-128-GCM:?CHACHA20-POLY1305
+auth SHA256
+allow-compression no
+
+push "redirect-gateway def1 bypass-dhcp"
+push "dhcp-option DNS 10.8.0.1"
+push "route REPLACE_LAN_NETWORK REPLACE_LAN_NETMASK"
+
+user nobody
+group nogroup
+persist-key
+persist-tun
+keepalive 10 120
+explicit-exit-notify 1
+
+verb 3

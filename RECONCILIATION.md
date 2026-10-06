@@ -610,6 +610,186 @@ Implementation prepared for review:
 - Added the exact public clone command and standardized the suggested Raspberry Pi working copy at `~/Software/raspberry-born`, owned by the normal login user rather than `root`. The documented absolute form uses `/home/{USERNAME}/Software/raspberry-born`.
 - The current installer intentionally manages one watchdog profile per host. A future Raspberry Pi that runs both OpenVPN client and server roles should use two isolated watchdog instances; implement that extension only when such a host exists.
 
+### General OpenVPN server setup assessment
+
+Status: read-only audit completed on 2026-09-25. No server guide, installer, archived asset or Raspberry Pi was changed.
+
+Sources compared:
+
+- active guide `chapters/vpn.md`
+- customized installer `src/vpn/openvpn-install.sh`
+- archived manual guide and assets under `src/vpn/archive/`
+- current upstream Nyr installer
+- current OpenVPN 2.6 cipher-negotiation documentation
+- current Easy-RSA release information
+- Debian 12 OpenVPN package service layout
+
+Security and repository scan:
+
+- No live private key, password, personal email address, MAC address, public DDNS name or generated `.ovpn` profile was found in the tracked files reviewed.
+- The installer and archived profile builder generate `.ovpn` files containing the client private key and the shared TLS key. These outputs are credentials and must remain outside Git, be transferred securely and not be kept in a general user home directory longer than necessary.
+- Personal email placeholders in certificate metadata are unnecessary and conflict with the public-repository policy. Certificate identity fields should remain generic unless they serve a verified operational purpose.
+
+Active guide and customized-installer findings:
+
+- The chapter downloads a moving third-party script and then asks the reader to patch it by historical line number. This is fragile and cannot be reproduced safely after upstream changes.
+- The chapter calls its repository copy a 2024 version, while the script header records a 2023 customization and differs substantially from current upstream.
+- The local fork permits Debian 9 and pins Easy-RSA 3.1.2. Current upstream requires Debian 11 or later and uses Easy-RSA 3.2.7 as of this audit.
+- Both the local fork and current upstream query a No-IP endpoint over plain HTTP to suggest the public address. A maintained repository implementation should use an HTTPS endpoint or require explicit input.
+- The local fork forces `cipher AES-256-CBC` in server and client configuration. OpenVPN 2.5 and later use `data-ciphers` negotiation, and OpenVPN 2.6 defaults to modern AEAD ciphers. A legacy fallback should be added only for a confirmed older peer.
+- The installer downloads and extracts Easy-RSA without verifying an archive hash or signature.
+- One run installs packages, creates the CA and client credentials, changes IP forwarding and firewall state, enables services and starts OpenVPN. It has no read-only check, configuration preview, backup or failed-install rollback.
+- The installer stores the unencrypted CA private key on the VPN server. This is a valid practical design only if it is documented deliberately, protected root-only and backed up securely. It conflicts with the chapter's later blanket recommendation for a separate CA machine.
+- The installer creates its own persistent iptables systemd service, while the chapter separately tells the reader to add a UFW rule. Firewall ownership is therefore duplicated and unclear.
+- The removal option disables services, removes the complete server PKI/configuration directory and purges OpenVPN. It is unsuitable as an ordinary maintenance command without an explicit verified backup and destructive confirmation boundary.
+- Generic `service openvpn` commands do not identify the configured instance. Debian 12 packages provide `openvpn-server@.service`; the guide should use the exact instance, such as `openvpn-server@server.service`, and journal-based diagnostics.
+- Direct-msmtp notification, root cron, NOPASSWD sudoers and status-log polling duplicate the newer durable notification queue and VPN watchdog. They should be retired from the core server guide.
+- The LED procedure is device-specific and uses the deprecated sysfs GPIO interface. It does not belong in the general OpenVPN installation path.
+- Pi-hole DNS integration needs a deliberate policy. Supplying a public resolver after Pi-hole allows clients to bypass Pi-hole filtering whenever they choose or fail over.
+- The suggested long-term storage under `/etc/openvpn/client/YYYYMMDD` is not an adequate client-profile custody policy merely because it is under `/etc`.
+
+Archived manual-method findings:
+
+- The archive describes an older OpenVPN and Easy-RSA layout, `tls-auth`, `ncp-disable`, fixed `AES-256-CBC`, manually restricted TLS cipher suites and old `openvpn@server` service paths.
+- It combines UFW edits, a permissive forwarding policy and a separate non-persistent iptables command without defining one firewall owner or rollback.
+- Its archived `MakeOVPN.sh` does not quote client-controlled file names, contains a certificate-name output typo and embeds private client and shared TLS keys in generated profiles.
+- It copies client private material into `/etc/openvpn/client` on the server and uses ambiguous recursive permission commands.
+- The method is useful only as historical context. Git history already preserves it, so current-looking runnable archived assets create more risk than value.
+
+Recommended direction:
+
+- Keep one authoritative general OpenVPN server guide for Debian and Raspberry Pi OS.
+- Replace the line-number patching workflow and broad third-party installer fork with repository-owned, focused and reviewable configuration assets and lifecycle commands.
+- Separate server installation, client certificate/profile lifecycle, Pi-hole DNS policy, site-to-site routing, monitoring/notifications and optional hardware indicators.
+- Make inspection and configuration rendering read-only by default. Use an explicit apply action, timestamped allowlisted backups, exact service units, validation and documented rollback.
+- Use one declared firewall owner. Do not choose or migrate the live firewall implementation until Raspi4-01 and Raspi4-02 have been inspected read-only.
+- Treat the archived manual guide and its configuration assets as superseded. Preserve their history in Git rather than presenting them as an alternative installation route.
+- Inspect Raspi4-01 and Raspi4-02 read-only before finalizing the replacement so the guide preserves working deployment details and compatibility requirements.
+
+Approved direction and archive requirement:
+
+- The user approved replacing the customized third-party installer with a repository-owned focused implementation.
+- Keep the existing automated and manual documents and assets for historical reference in a dedicated top-level `archive/openvpn/` tree.
+- Archived material must have a prominent README stating that it is superseded, may contain unsafe or incompatible instructions and must not be executed as a current guide.
+- The archive is not linked as an alternative installation method from the main README or active OpenVPN chapter.
+
+Approved replacement design:
+
+- Keep the user-facing setup in one command-first file: `chapters/vpn.md`. Put explanations and limitations next to the commands they affect instead of adding design or planning sections.
+- Keep `src/vpn/server/README.md` to a minimal asset pointer. Implementation scripts and templates may remain under `src/`, but readers should not need to assemble the procedure from multiple README files.
+- Preserve external port `11194` as the tailored example. Both the archived manual profile and the archived automated guide's worked installation use `11194`; no `40194` occurrence was found in the current repository or its OpenVPN history.
+
+#### Repository layout
+
+```text
+chapters/vpn.md                         authoritative server guide
+src/vpn/server/README.md                asset scope and safety model
+src/vpn/server/vpn-server.conf.example  non-secret local choices
+src/vpn/server/server.conf.template     maintained OpenVPN template
+src/vpn/server/install-server.sh        check, apply and rollback
+src/vpn/server/manage-client.sh         list, create, export and revoke clients
+src/vpn/server/firewall/                one audited firewall implementation
+archive/openvpn/README.md               superseded-material warning
+archive/openvpn/automated/              old chapter, installer and related assets
+archive/openvpn/manual/                 old manual guide and its assets
+archive/openvpn/extras/                 old email and GPIO LED scripts
+```
+
+- Keep `src/vpn/site-to-site/` active and separate. The general server installer must not silently apply the Athens-Crete routing configuration.
+- Keep `chapters/vpn-watchdog.md` and the durable notification queue as separate post-install integrations linked from the main guide.
+- Add `.ovpn`, PKCS#12 exports and the local server configuration/output paths to Git ignore protection without using an overly broad pattern that hides legitimate templates.
+
+#### Guide scope and sequence
+
+1. State supported Debian/Raspberry Pi OS and OpenVPN versions and distinguish a new installation from adopting an existing server.
+2. Run a read-only inventory of interfaces, routes, ports, package versions, exact OpenVPN instance units, configuration locations, PKI, forwarding, firewall owner, router/NAT assumptions, Pi-hole behavior and existing clients.
+3. Record local choices in an ignored root-owned configuration copied from `vpn-server.conf.example`.
+4. Install required Debian packages as an explicit documented step. Do not run an unconditional full system upgrade.
+5. Initialize or adopt the PKI without overwriting an existing CA, certificate, key or CRL.
+6. Render and validate the OpenVPN and firewall configuration before installation.
+7. Apply only after an explicit command, with timestamped allowlisted backups and automatic restoration when validation fails.
+8. Enable or restart the exact `openvpn-server@server.service` instance in a separate, clearly identified disruptive step.
+9. Verify the listener, tunnel, forwarding, DNS, Internet routing policy, client connection, journal and reboot recovery with expected results.
+10. Add clients, transfer profiles, revoke clients, renew certificates, back up the PKI and roll back configuration through separate lifecycle sections.
+
+#### Server configuration choices
+
+- Default to UDP and allow different external router and internal OpenVPN ports. Explain both values and the required router port-forward without embedding a live public address or DDNS name.
+- Support an explicit full-tunnel or split-tunnel choice. Do not assume all deployments need `redirect-gateway` or Internet NAT.
+- Use `topology subnet`, client certificates, `tls-crypt`, `tls-version-min 1.2`, a CRL and current `data-ciphers` negotiation. Do not force legacy CBC or compatibility mode unless a tested client requires it.
+- Keep restrictive-network TCP access as an optional second OpenVPN instance with its own service, port, status file and client profile. Do not suggest changing the main UDP profile in place without a complete multi-instance procedure.
+- Use the systemd journal and the instance status file for diagnostics. Do not maintain duplicate flat logs merely to support old polling scripts.
+- Do not add direct SMTP hooks, root cron jobs, passwordless sudo notification scripts or GPIO behavior to the core server configuration.
+
+#### PKI and secret model
+
+- Practical default: keep the CA on the OpenVPN server, protect the CA private key with a strong passphrase, restrict it to `root` and maintain an encrypted offline backup. This keeps client issuance manageable while improving on the current unencrypted CA key.
+- Keep the server private key unencrypted but root-only because the service must start unattended. Back it up only as part of the encrypted PKI backup.
+- Use one certificate and private key per client device. Never reuse one profile across a phone, laptop and Raspberry Pi.
+- Password-protect client private keys for laptops, phones and other interactive devices. OpenVPN Connect can save the private-key password so the user does not need to enter it on every connection.
+- Do not add `setenv ALLOW_PASSWORD_SAVE 0` to generated profiles. Clearly distinguish a client private-key password from optional server-side username/password authentication; the planned certificate-only server does not require adding a second login password.
+- For OpenVPN Connect on Android and iOS, document saving the password in the device keychain and require a strong device screen lock. For Windows and macOS, document the corresponding saved private-key-password option.
+- For unattended Raspberry Pi clients, permit an unencrypted client key only when it is root-owned, mode `0600`, unique to that device and promptly revocable. Storing its password beside it would not materially improve protection.
+- Document an optional client-generated CSR workflow for administrators who do not want client private keys created on the server, without making that advanced path the main setup.
+- Never place a CA key, server key, client key, TLS key, live profile, passphrase, endpoint or DDNS name in Git.
+
+#### Generated client profiles
+
+- Generate one inline `.ovpn` profile per client. It normally contains connection directives, the public CA certificate, the public client certificate, the client private key and the `tls-crypt` shared secret. It also contains the real endpoint and port.
+- Because the inline profile contains authentication secrets, possession of an unencrypted working profile can be sufficient to connect until its certificate is revoked.
+- Create exports temporarily under `/root/openvpn-client-exports/`, with the directory mode `0700` and each profile mode `0600`. Do not use `/etc/openvpn/client/` as an export archive because Debian uses that path for active OpenVPN client instances.
+- Transfer profiles over verified SSH using `scp`, SFTP or WinSCP. Never disable SSH host-key checking and never send profiles by ordinary email or store them in the repository.
+- Keep durable profile copies in a separate encrypted secrets store or encrypted offline backup on the administration laptop. After successful import and backup verification, remove the temporary server export.
+- The Easy-RSA PKI may retain a generated client private key for convenient re-export in the practical default workflow. The guide must state this clearly and offer the CSR workflow when keeping client private keys only on their destination is required.
+- Record only non-secret inventory in Git or the device runbook: client certificate name, owning device, issuing server, serial or fingerprint, issue date, expiry date and revocation status. Do not record the profile contents or public endpoint.
+- Provide target-specific import notes for Windows, mobile devices and unattended Raspberry Pi clients, including deletion of temporary transfer copies after import.
+- Optimize the normal laptop and mobile workflow for import once, save the private-key password in OpenVPN Connect and connect later without repeated password entry.
+
+#### Pi-hole compatibility
+
+- Cover both Pi-hole on the OpenVPN server and Pi-hole on another LAN host.
+- Push only the Pi-hole DNS address by default so ordinary DNS requests from VPN clients are filtered. Do not also push a public resolver because that creates an intentional filtering bypass.
+- If DNS resilience is preferred over guaranteed filtering, document a public fallback as an explicit alternative policy and explain the tradeoff.
+- Verify Pi-hole's current interface-listening mode, UDP and TCP port 53 access from the VPN subnet, routing and return path before changing it.
+- Prefer Pi-hole's `Allow only local requests` mode when OpenVPN and Pi-hole run on the same Raspberry Pi and Pi-hole recognizes the tunnel subnet as locally attached.
+- `Permit all origins` makes Pi-hole answer DNS requests arriving on any interface and from non-local source networks. It does not itself open a router port, but it removes Pi-hole's source-network safeguard and can create an Internet-accessible open resolver if firewall or router rules expose port 53.
+- Do not select `Permit all origins` merely to make the VPN work. If a routed VPN design genuinely requires it, permit DNS only from the intended LAN and VPN ranges in the firewall and verify that public interfaces cannot reach port 53.
+- Verify with direct DNS queries to the Pi-hole VPN or LAN address and confirm the request appears in Pi-hole before declaring the integration complete.
+- Note that pushed DNS settings cover normal DNS. Client-side encrypted DNS, Android Private DNS, browser DNS-over-HTTPS or applications with built-in resolvers can bypass Pi-hole and need separate client policy if complete enforcement is required.
+- Keep the detailed Pi-hole-side settings in `chapters/pihole.md` and link the two chapters in both directions so they cannot drift independently.
+
+#### Firewall and fresh-installation safety
+
+- The new guide targets fresh Raspberry Pi installations. It does not migrate, replace or normalize Raspi4-01 or Raspi4-02.
+- Use one documented firewall owner for the fresh-installation design. Do not combine an installer-created iptables service, UFW rules and nftables rules.
+- Never flush an existing ruleset or replace `/etc/nftables.conf` blindly. Render the proposed rules, validate them and show the diff first.
+- Keep router port-forwarding outside the Raspberry Pi installer and document it as a separate network-device action.
+- Refuse to apply the fresh-installation workflow when an existing OpenVPN server configuration or PKI is detected. Direct the reader to back up and assess that host manually rather than treating it as a fresh installation.
+- Back up any pre-existing firewall and forwarding files touched during setup, even on a nominally fresh host.
+- Do not provide a one-command destructive uninstall. Rollback restores the managed files from a selected backup; package purge and PKI deletion require a separate manual procedure.
+
+#### Existing installations
+
+- Raspi4-01 and Raspi4-02 remain unchanged and are not prerequisites for writing the new-installation guide.
+- Do not spend project time migrating the existing servers unless the user opens a later dedicated task for that purpose.
+- A future read-only inspection may still be useful for documenting their device runbooks, but it must not delay the fresh-installation chapter.
+
+First implementation chunk prepared for review:
+
+- Moved the previous automated guide, customized installer and Diffie-Hellman file to `archive/openvpn/automated/` without changing their contents.
+- Moved the older manual guide and supporting assets to `archive/openvpn/manual/` without changing their contents.
+- Moved both tracked notification/LED scripts and the formerly ignored inotify notification script to `archive/openvpn/extras/`.
+- Added `archive/openvpn/README.md` with a prominent warning that the material is superseded and must not be used as current instructions.
+- Replaced `chapters/vpn.md` with a clearly marked, non-deployable scaffold for the approved fresh-installation design.
+- Added `src/vpn/server/README.md` and `vpn-server.conf.example`. No installer, server template or firewall asset exists yet, so the scaffold cannot be mistaken for a complete deployment procedure.
+- Simplified the temporary chapter scaffold and asset README after user review. The final chapter will contain exact commands and nearby explanations rather than design decisions or a planned-procedure essay.
+- Changed the example external router port from `1194` to the repository's established tailored value `11194`; the internal OpenVPN listening port remains `1194`.
+- Replaced the old Pi-hole `Permit all origins` default with the safe local-request policy, VPN-only Pi-hole DNS expectations and an explanation of encrypted-DNS bypass.
+- Removed the obsolete ignored-notifier rule and added Git ignore protection for live server configuration, generated output, `.ovpn`, `.p12` and `.pfx` files, plus LF attributes for maintained server assets.
+- Verified that every previously tracked archived file has the same Git blob hash after the move. Verified the formerly ignored notifier byte-for-byte against the external backup.
+- Markdown structure, relative links, strict configuration-schema syntax, ignore behavior, whitespace and prohibited sensitive-data patterns passed local validation.
+- Nothing was staged, committed, pushed or deployed. No Raspberry Pi was contacted or changed.
+
 ## Required backup point
 
 Before reconciliation changes beyond these planning files:
@@ -705,10 +885,43 @@ Status: completed and verified.
 - Clarified the VPN-watchdog file-transfer assumption: the Raspberry Pi may use a full repository clone or a copied watchdog asset directory.
 - Recorded the legacy username references in the 2FA chapter and archived Pi-hole guide for later focused cleanup; they remain outside this commit.
 - Final VPN-watchdog validation passed for Bash syntax, both role configurations, Markdown fences, relative links, whitespace, LF line endings, staged executable modes and prohibited identifier patterns. Committed the focused scope locally; nothing was pushed or deployed.
+- Completed the read-only audit of the active and archived general OpenVPN server installation methods. Confirmed that neither method is suitable as the future authoritative workflow without redesign; no VPN implementation file or Raspberry Pi was changed.
+- Confirmed that later focused reviews must replace hardcoded username paths in `chapters/2FA.md` and `src/archive/pihole.md`; no change to those files was made in this chunk.
+
+### 2026-09-26
+
+- User approved the repository-owned OpenVPN server direction and requested that all existing automated and manual material be retained in a dedicated legacy/archive location.
+- Prepared the detailed replacement proposal covering archival layout, server setup, PKI custody, generated profile contents and storage, unattended clients, Pi-hole DNS policy, firewall ownership, adoption of existing servers, validation and rollback.
+- User approved the detailed replacement proposal and clarified that it is intended for fresh installations, not migration of Raspi4-01 or Raspi4-02.
+- Recorded the usability requirement that OpenVPN Connect users on laptops and phones can save the password protecting the client private key and connect later without retyping it.
+- Confirmed Pi-hole-only pushed DNS as the default for VPN clients, documented the meaning and exposure risk of `Permit all origins`, and recorded the limitation that client-side encrypted DNS can bypass pushed DNS.
+- User explicitly authorized the first implementation chunk.
+- Archived the superseded OpenVPN material without rewriting it, created the non-deployable replacement scaffold and configuration schema, updated the Pi-hole VPN policy and added generated-profile ignore rules.
+- User requested a shorter, single-file, command-first guide. Simplified the chapter scaffold and asset README and restored external port `11194` from the archived setup evidence.
+- Replaced the placeholder with the first command-first setup chunk: fresh-host inspection, Debian package installation, protected Easy-RSA CA creation, server credentials, maintained OpenVPN 2.6 template and read-only validation before activation.
+- Removed the unused `vpn-server.conf.example` schema so local choices are not duplicated between a separate configuration file and the authoritative chapter. Kept `src/vpn/server/README.md` as a minimal asset pointer.
+- This chunk deliberately does not activate OpenVPN or change forwarding, nftables, router or Pi-hole service state. No Raspberry Pi was contacted.
+- No Raspberry Pi was contacted or changed. The chunk remains uncommitted for review.
+
+### 2026-09-29
+
+- Added expected outcomes and stop conditions for every fresh-installation inspection command in the OpenVPN server chapter.
+- Selected a 15-year CA and 5-year server/client certificates with RSA 3072 and SHA-256 as the maintenance/security balance. Added daily certificate-expiry monitoring with durable notices beginning at 180 days for the CA and 90 days for issued certificates.
+- Made DNS conditional: same-host or LAN Pi-hole remains the only resolver when filtering is required; installations without Pi-hole use the Cloudflare resolver pair in the documented example.
+- Clarified the later Pi-hole installation path: remove all public DNS pushes, add the Pi-hole address, restart the OpenVPN server and reconnect clients; existing client profiles remain valid.
+- Clarified that the installed client-management command is a stable snapshot and does not need reinstalling for each client. Added source-commit recording, checksum verification, reviewed fast-forward updates, Bash validation, a read-only post-update check and rollback to the previous installed copy.
+- Promoted unattended Raspberry Pi client creation to its own subsection and explained the ownership, group, mode and temporary-copy behavior of the profile-transfer `install` command.
+- Completed the command-first fresh-server workflow: IPv4 forwarding, dedicated non-flushing nftables tables, router forwarding, exact service activation, password-protected interactive client profiles, unattended-device profiles, secure transfer, external verification, certificate renewal, revocation, reboot recovery and configuration rollback.
+- Added maintained nftables, sysctl, client-management and certificate-monitoring assets under `src/vpn/server/`. No live endpoint, profile, key or other secret was added.
+- Git Bash syntax validation passed for both new scripts. Markdown fences, relative paths, whitespace and sensitive-data checks remain required before approval. Native nftables and OpenVPN parsing remain Raspberry Pi pre-deployment checks.
+- Nothing was staged, committed, pushed or deployed. No Raspberry Pi was contacted.
+
 
 ## Next controlled chunk
 
-1. Perform the planned read-only audit of the general OpenVPN server setup: compare `chapters/vpn.md`, `src/vpn/openvpn-install.sh` and the archived fully manual method without merging their approaches blindly.
-2. Present the server-setup findings and a small set of decisions before editing those files.
-3. Decide later, per device, whether proven recovery justifies enabling either the VPN-watchdog reboot fallback or the available conditional 04:45 update reboot profile.
-4. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or push.
+1. Review the completed command-first VPN server chapter and supporting assets; correct any usability or policy issues found.
+2. Run final static validation and prepare the OpenVPN archival/replacement scope for a focused local commit only after user approval.
+3. Keep native nftables/OpenVPN parsing and deployment verification as explicit fresh-Raspberry-Pi checks; do not claim deployment evidence from Windows validation.
+4. Decide later, per device, whether proven recovery justifies enabling either the VPN-watchdog reboot fallback or the available conditional 04:45 update reboot profile.
+5. Review `chapters/2FA.md` and `src/archive/pihole.md` later as focused topics, including removal of hardcoded usernames.
+6. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or push.

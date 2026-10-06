@@ -10,8 +10,12 @@ id_rsa*
 src/email-exim4.sh
 src/hosts_ATH
 src/hosts_GVA
-src/vpn/OpenVPN-email_*
 src/vpn/site-to-site/site.conf
+src/vpn/server/vpn-server.conf
+src/vpn/server/output/
+*.ovpn
+*.p12
+*.pfx
 src/notify/notify.conf
 src/ups/ups-monitor.conf
 src/monitoring/boot-report/boot-report.conf

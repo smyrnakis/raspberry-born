@@ -1,0 +1,11 @@
+[Unit]
+Description=Check OpenVPN certificate expiry daily
+
+[Timer]
+OnCalendar=*-*-* 09:15:00
+Persistent=true
+RandomizedDelaySec=15m
+Unit=raspi-vpn-cert-check.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,18 @@
+# Routing and NAT for the OpenVPN server. This file does not flush other tables.
+table inet raspberry_born_openvpn {
+    chain forward {
+        type filter hook forward priority filter; policy accept;
+
+        iifname "tun0" ip saddr 10.8.0.0/24 oifname "REPLACE_UPLINK_INTERFACE" counter accept
+        oifname "tun0" ip daddr 10.8.0.0/24 ct state established,related counter accept
+        oifname "tun0" ip daddr 10.8.0.0/24 counter drop
+    }
+}
+
+table ip raspberry_born_openvpn_nat {
+    chain postrouting {
+        type nat hook postrouting priority srcnat; policy accept;
+
+        oifname "REPLACE_UPLINK_INTERFACE" ip saddr 10.8.0.0/24 counter masquerade
+    }
+}

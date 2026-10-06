@@ -101,25 +101,31 @@ sudo pihole -a -p
 Check "Use DNSSEC"
 ```
 
-### Configure interfaces
+### Configure interfaces safely
 
-##### Using the terminal
-``` bash
-pihole -a -i all
-```
+In the Pi-hole admin panel, open **Settings > DNS > Interface settings** and keep **Allow only local requests** unless the network design requires something broader.
 
-##### Using the admin panel
-```
-# Access admin panel at {RASPBERRY-PI-IP}/admin
-# e.g: 192.168.1.100/admin
+This mode accepts DNS queries from subnets that Pi-hole recognizes as locally connected. When Pi-hole and OpenVPN run on the same Raspberry Pi, the OpenVPN tunnel subnet should be locally connected through the tunnel interface.
 
-# Settings --> DNS --> Interface settings --> Potentially dangerous options
-Permit all origins
-```
+`Permit all origins` makes Pi-hole answer DNS requests arriving on any interface and from non-local source networks. It does not disable filtering or open a firewall port by itself, but it removes Pi-hole's source-network safeguard. If TCP or UDP port 53 is exposed by a firewall or router, the Raspberry Pi could become a public DNS resolver.
+
+Do not enable `Permit all origins` merely to make OpenVPN work. If an unusual routed VPN design requires it, restrict port 53 in the firewall to the intended LAN and VPN ranges and verify that it is unreachable through the public interface.
 
 ## OpenVPN configuration
 
-Assuming an *OpenVPN* server is running on your system, configure it to use Pi-hole by following the steps [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn.md#configure-openvpn-to-use-pi-hole).
+Follow the [OpenVPN server guide](vpn.md#pi-hole-dns-filtering) to push Pi-hole as the only DNS resolver for VPN clients.
+
+For the normal same-host design:
+
+1. Keep Pi-hole on **Allow only local requests**.
+2. Push the VPN-side Pi-hole address, normally `10.8.0.1`, to OpenVPN clients.
+3. Allow TCP and UDP port 53 from the VPN subnet in the Raspberry Pi firewall.
+4. Do not push a public fallback DNS server when guaranteed Pi-hole filtering is required.
+5. Connect a VPN client, perform a DNS lookup and confirm that the request appears in Pi-hole's query log.
+
+If OpenVPN was configured before Pi-hole was installed, return to the [OpenVPN DNS section](vpn.md#pi-hole-dns-filtering), replace the public resolvers with the Pi-hole address, restart the OpenVPN server and reconnect the clients. Client profiles do not need to be regenerated.
+
+Client-side encrypted DNS can bypass the resolver supplied by OpenVPN. Check Android Private DNS, browser DNS-over-HTTPS and applications with built-in DNS if a connected device does not appear in Pi-hole.
 
 <br>
 

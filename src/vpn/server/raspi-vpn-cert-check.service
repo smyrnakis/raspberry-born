@@ -1,0 +1,7 @@
+[Unit]
+Description=Check OpenVPN certificate expiry
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/raspi-vpn-cert-check

@@ -1,593 +1,675 @@
-# Install & configure ***OpenVPN*** server
+# Install and configure an OpenVPN server
 
-*Article 1: https://docs.pi-hole.net/guides/vpn/overview/*
+This guide prepares a new OpenVPN server on Raspberry Pi OS based on Debian 12 or 13 with OpenVPN 2.6 or later. It does not migrate an existing server.
 
-*Article 2: https://github.com/OpenVPN/easy-rsa/blob/master/easyrsa3/vars.example*
+The example uses:
 
-*Article 3: https://blog.securityevaluators.com/hardening-openvpn-in-2020-1672c3c4135a*
+- UDP `1194` on the Raspberry Pi
+- UDP `11194` on the Internet router, forwarded to UDP `1194`
+- VPN network `10.8.0.0/24`
+- full-tunnel routing
+- Pi-hole on the same Raspberry Pi at `10.8.0.1`
 
-*Article 4: https://blog.g3rt.nl/openvpn-security-tips.html*
+Do not commit a real public IP address, DDNS name, private key or generated `.ovpn` profile.
 
-<br>
+This procedure tunnels IPv4. A client with working public IPv6 may bypass the IPv4 tunnel; disable IPv6 on that client or add a separately tested IPv6 VPN design when IPv6 full-tunnel coverage is required.
 
-## Preparation
+## 1. Get the repository
 
-Ensure the system is updated:
-``` bash
-sudo apt-get update && sudo apt-get upgrade -y
+Run on the Raspberry Pi as the normal login user:
+
+```bash
+mkdir -p ~/Software
+cd ~/Software
+git clone https://github.com/smyrnakis/raspberry-born.git
+cd raspberry-born
 ```
 
-Create a directory named `OpenVPN`, subdirectory of `Software` in your `$HOME` :
-``` bash
-cd ~
-mkdir Software
-mkdir Software/OpenVPN
-cd Software/OpenVPN
+If the repository is already present:
+
+```bash
+cd ~/Software/raspberry-born
+git status --short
+git pull --ff-only
 ```
 
-Download installation script and make it executable:
-``` bash
-wget https://git.io/vpn -O openvpn-install.sh
-chmod 755 openvpn-install.sh
+Do not pull over local changes. Resolve them first.
+
+## 2. Confirm that this is a fresh installation
+
+These commands only inspect the Raspberry Pi:
+
+```bash
+cat /etc/os-release
+ip -brief address
+ip route
+sudo ss -lntup
+dpkg-query -W openvpn easy-rsa nftables 2>/dev/null || true
+systemctl list-unit-files 'openvpn*' --no-pager
+sudo find /etc/openvpn -maxdepth 3 -type f -print 2>/dev/null
+sysctl net.ipv4.ip_forward
+sudo nft list ruleset 2>/dev/null || true
 ```
 
-### Getting installation script ready
+Use the results as follows:
 
-*The above script (version of 10/10/2024, including the customisations) is also available [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/openvpn-install.sh).*
+| Command | Expected result on a suitable fresh installation |
+| --- | --- |
+| `cat /etc/os-release` | Raspberry Pi OS or Debian, with `VERSION_CODENAME=bookworm` or `trixie`. Stop if the release differs until compatibility is checked. |
+| `ip -brief address` | The LAN interface is `UP` and has the expected private address. There is normally no `tun0` yet. |
+| `ip route` | A `default via ... dev ...` route identifies the Internet-facing interface. A connected route identifies the LAN subnet. Record both. |
+| `sudo ss -lntup` | Existing listening services are shown. UDP `1194` must be unused. Investigate anything unexpectedly exposed on `0.0.0.0` or `[::]`. |
+| `dpkg-query ...` | Installed package versions are printed. Missing packages produce no visible line because errors are suppressed. |
+| `systemctl list-unit-files 'openvpn*'` | No active custom OpenVPN instance should exist. Unit templates may appear if the package is already installed. |
+| `sudo find /etc/openvpn ...` | No output is expected. Any configuration, certificate or key means this is not a fresh installation. |
+| `sysctl net.ipv4.ip_forward` | `net.ipv4.ip_forward = 0` is the normal starting value. If it is already `1`, identify which service requires forwarding before continuing. |
+| `sudo nft list ruleset` | An empty or known minimal ruleset is expected. Stop if UFW, firewalld, Docker or another administrator already owns firewall rules until the new rules are integrated with that owner. |
 
-*It is recommended that you always get the newest version and follow the above steps before a fresh OpenVPN installation.*
+Stop here if `/etc/openvpn` already contains a configuration, certificate authority, certificate or private key. Back up and assess that installation separately.
 
-<br>
+Record these two values from the output:
 
-Edit the installation script accordingly:
-``` bash
-nano openvpn-install.sh
+- the LAN network, for example `192.168.1.0/24`
+- the Internet-facing interface from the default route, for example `eth0`
+
+The interface is needed for the firewall configuration later in this guide.
+
+## 3. Install the required packages
+
+This does not perform a full system upgrade:
+
+```bash
+sudo apt update
+sudo apt install openvpn easy-rsa nftables
 ```
 
-#### External port
-Add *External port* section, just after line `177`. This is the external port you plan to open in your router, where the clients will connect to :
-``` bash
-echo "What port should OpenVPN listen to?"
-read -p "Port [1194]: " port
-until [[ -z "$port" || "$port" =~ ^[0-9]+$ && "$port" -le 65535 ]]; do
-  echo "$port: invalid port."
-  read -p "Port [1194]: " port
-done
-[[ -z "$port" ]] && port="1194"
-echo
-# <<< PART TO BE ADDED STARTS HERE >>>
-echo "What will be the external OpenVPN port?"
-read -p "External Port [1194]: " extport
-until [[ -z "$extport" || "$extport" =~ ^[0-9]+$ && "$extport" -le 65535 ]]; do
-  echo "$extport: invalid port."
-  read -p "External Port [1194]: " extport
-done
-[[ -z "$extport" ]] && extport="1194"
-echo
-# <<< PART TO BE ADDED FINISHES HERE >>>
+Verify the installed versions:
+
+```bash
+openvpn --version | head -n 2
+dpkg-query -W -f='${Package}\t${Version}\n' openvpn easy-rsa nftables
 ```
 
-#### *easy-rsa* version
-The installation script will download `easy-rsa` from the official OpenVPN's [Github](https://github.com/OpenVPN/easy-rsa/releases/) repo.
-It's recommended that you check the latest version in the repo is the same with the one the script will download *(`v3.2.1` as of 10/10/2024)*.
-``` bash
-# line 248
-easy_rsa_url='https://github.com/OpenVPN/easy-rsa/releases/download/v3.2.1/EasyRSA-3.2.1.tgz'
+The OpenVPN output must report version 2.6 or later for this configuration.
+
+## 4. Create the certificate authority
+
+Create a root-only Easy-RSA working directory:
+
+```bash
+sudo install -d -o root -g root -m 700 /etc/openvpn/server/easy-rsa
+sudo cp -a /usr/share/easy-rsa/. /etc/openvpn/server/easy-rsa/
+sudo chown -R root:root /etc/openvpn/server/easy-rsa
+cd /etc/openvpn/server/easy-rsa
 ```
 
-#### easy-rsa *KEY_SIZE*
-Add `EASYRSA_KEY_SIZE` var, after line `252`:
-``` bash
-chown -R root:root /etc/openvpn/server/easy-rsa/
-cd /etc/openvpn/server/easy-rsa/
-# <<< PART TO BE ADDED STARTS HERE >>>
-cp vars.example vars
-echo 'set_var EASYRSA_KEY_SIZE  4096' >> vars
-# <<< PART TO BE ADDED FINISHES HERE >>>
+Create the Easy-RSA settings:
+
+```bash
+sudo cp vars.example vars
+sudo vim vars
 ```
 
-At this point you can add more EASYRSA variables, e.g: `EASYRSA_REQ_EMAIL`. Example:
-``` bash
-echo 'set_var EASYRSA_REQ_EMAIL  {YOUR-EMAIL}' >> vars
+Add these lines at the end:
+
+```text
+set_var EASYRSA_ALGO           rsa
+set_var EASYRSA_KEY_SIZE       3072
+set_var EASYRSA_DIGEST         sha256
+set_var EASYRSA_CA_EXPIRE      5475
+set_var EASYRSA_CERT_EXPIRE    1825
 ```
 
-#### Client's password
-Remove the `nopass` argument from client's keys creation in line `260`:
+These values select widely supported RSA keys, a 3072-bit key size, SHA-256 signatures, a 15-year CA and 5-year server/client certificates. The longer-lived CA avoids rebuilding every client profile during the first ten years; the shorter device certificates are easier to rotate if a key has aged or a device is replaced.
 
-``` bash
-./easyrsa --batch build-ca nopass
-EASYRSA_CERT_EXPIRE=3650 ./easyrsa build-server-full server nopass
-# <<< PART TO BE EDITED STARTS HERE >>>
-EASYRSA_CERT_EXPIRE=3650 ./easyrsa build-client-full "$client"
-# <<< PART TO BE EDITED FINISHES HERE >>>
+Initialize the PKI and create the CA:
+
+```bash
+sudo ./easyrsa init-pki
+sudo ./easyrsa --req-cn=raspberry-born-ca build-ca
 ```
 
-Doing this, the script will ask you to set client's certificate password which will be needed in order to connect to the server, improving the security of the configuration.
+Enter a strong CA passphrase and store it in an encrypted password manager. The CA private key remains on this Raspberry Pi under `/etc/openvpn/server/easy-rsa/pki/private/ca.key`; include it only in an encrypted offline backup.
 
-#### DH parameters
-It is recommended to use `ffdhe4096` rather the `ffdhe2048` in order to increase the security. In line `271` there are the *pre-defined **ffdhe2048*** parameters.
+The CA is valid for 15 years. Server and client certificates are valid for 5 years and are renewed without replacing the CA. This gives the installation a service life beyond ten years while still rotating device certificates. Section 13 installs expiry reminders.
 
-Replace them with the *pre-defined **ffdhe4096*** available [HERE](https://github.com/internetstandards/dhe_groups/blob/master/ffdhe4096.pem) *(NL Internet Standards)* and also [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/ffdhe4096.pem) *(re-uploaded on my repo)*.
+## 5. Create the server credentials
 
-``` bash
-# line 271
+The server key is deliberately created without a passphrase so OpenVPN can start unattended. It remains readable only by `root`.
 
-# <<< PART TO BE REPLACED STARTS HERE >>>
-echo '-----BEGIN DH PARAMETERS-----
-MIIBCAKCAQEA//////////+t+FRYortKmq/cViAnPTzx2LnFg84tNpWp4TZBFGQz
-+8yTnc4kmz75fS/jY2MMddj2gbICrsRhetPfHtXV/WVhJDP1H18GbtCFY2VVPe0a
-87VXE15/V8k1mE8McODmi3fipona8+/och3xWKE2rec1MKzKT0g6eXq8CrGCsyT7
-YdEIqUuyyOP7uWrat2DX9GgdT0Kj3jlN9K5W7edjcrsZCwenyO4KbXCeAvzhzffi
-7MA0BM0oNC9hkXL+nOmFg/+OTxIy7vKBg8P+OxtMb61zO7X8vC7CIAXFjvGDfRaD
-ssbzSibBsu/6iGtCOGEoXJf//////////wIBAg==
------END DH PARAMETERS-----' > /etc/openvpn/server/dh.pem
-# <<< PART TO BE REPLACED FINISHES HERE >>>
-
-# <<< REPLACE ABOVE CODE WITH THE FOLLOWING>>>
-echo '-----BEGIN DH PARAMETERS-----
-MIICCAKCAgEA//////////+t+FRYortKmq/cViAnPTzx2LnFg84tNpWp4TZBFGQz
-+8yTnc4kmz75fS/jY2MMddj2gbICrsRhetPfHtXV/WVhJDP1H18GbtCFY2VVPe0a
-87VXE15/V8k1mE8McODmi3fipona8+/och3xWKE2rec1MKzKT0g6eXq8CrGCsyT7
-YdEIqUuyyOP7uWrat2DX9GgdT0Kj3jlN9K5W7edjcrsZCwenyO4KbXCeAvzhzffi
-7MA0BM0oNC9hkXL+nOmFg/+OTxIy7vKBg8P+OxtMb61zO7X8vC7CIAXFjvGDfRaD
-ssbzSibBsu/6iGtCOGEfz9zeNVs7ZRkDW7w09N75nAI4YbRvydbmyQd62R0mkff3
-7lmMsPrBhtkcrv4TCYUTknC0EwyTvEN5RPT9RFLi103TZPLiHnH1S/9croKrnJ32
-nuhtK8UiNjoNq8Uhl5sN6todv5pC1cRITgq80Gv6U93vPBsg7j/VnXwl5B0rZp4e
-8W5vUsMWTfT7eTDp5OWIV7asfV9C1p9tGHdjzx1VA0AEh/VbpX4xzHpxNciG77Qx
-iu1qHgEtnmgyqQdgCpGBMMRtx3j5ca0AOAkpmaMzy4t6Gh25PXFAADwqTs6p+Y0K
-zAqCkc3OyX3Pjsm1Wn+IpGtNtahR9EGC4caKAH5eZV9q//////////8CAQI=
------END DH PARAMETERS-----' > /etc/openvpn/server/dh.pem
+```bash
+sudo ./easyrsa build-server-full server nopass
+sudo ./easyrsa gen-crl
+sudo openvpn --genkey tls-crypt /etc/openvpn/server/tls-crypt.key
 ```
 
-*More info: [IETF RFC 7919](https://tools.ietf.org/html/rfc7919)*
+Easy-RSA asks for the CA passphrase when signing the server certificate and CRL.
 
-#### TLS version
-To strengthen against downgrade attack on the TLS protocol level, add in a new line the `tls-version-min 1.2` on both *server* and *client* configuration (approx lines: `289` & `432` respectively).
+Install the files used by the OpenVPN service:
 
-``` bash
-# line 289
-ca ca.crt
-cert server.crt
-key server.key
-dh dh.pem
-auth SHA512
-# <<< PART TO BE ADDED STARTS HERE >>>
-tls-version-min 1.2
-# <<< PART TO BE ADDED FINISHES HERE >>>
-tls-crypt tc.key
-topology subnet
-
-# [...]
-
-# line 432
-nobind
-persist-key
-persist-tun
-# <<< PART TO BE ADDED STARTS HERE >>>
-tls-version-min 1.2
-# <<< PART TO BE ADDED FINISHES HERE >>>
-remote-cert-tls server
-auth SHA512
+```bash
+sudo install -o root -g root -m 644 pki/ca.crt /etc/openvpn/server/ca.crt
+sudo install -o root -g root -m 644 pki/issued/server.crt /etc/openvpn/server/server.crt
+sudo install -o root -g root -m 600 pki/private/server.key /etc/openvpn/server/server.key
+sudo install -o root -g root -m 644 pki/crl.pem /etc/openvpn/server/crl.pem
+sudo chown root:root /etc/openvpn/server/tls-crypt.key
+sudo chmod 600 /etc/openvpn/server/tls-crypt.key
 ```
 
-#### Server logging
-Change the logging directives of the server after the line `348`:
+## 6. Install the server configuration
 
-``` bash
-verb 3
-# <<< PART TO BE ADDED STARTS HERE >>>
-mute 10
-status /var/log/openvpn-status.log 20
-log-append /var/log/openvpn.log
-# <<< PART TO BE ADDED FINISHES HERE >>>
+Return to the repository and install the maintained template:
+
+```bash
+cd ~/Software/raspberry-born
+sudo install -o root -g root -m 600 \
+  src/vpn/server/server.conf.template \
+  /etc/openvpn/server/server.conf
+sudo vim /etc/openvpn/server/server.conf
 ```
 
-#### Client configuration
-Replace `$port` variable with `$extport` in line `433`:
+Replace both LAN placeholders with the Raspberry Pi LAN network and netmask. For `192.168.1.0/24`, use:
 
-``` bash
-dev tun
-proto $protocol
-# <<< PART TO BE EDITED STARTS HERE >>>
-remote $ip $extport
-# <<< PART TO BE EDITED FINISHES HERE >>>
+```text
+push "route 192.168.1.0 255.255.255.0"
 ```
 
-#### Client's password (when adding new client)
-Remove the `nopass` argument from client's keys creation in line `478`:
+### Pi-hole DNS filtering
 
-``` bash
-cd /etc/openvpn/server/easy-rsa/
-# <<< PART TO BE EDITED STARTS HERE >>>
-./easyrsa --batch --days=3650 build-client-full "$client"
-# <<< PART TO BE EDITED FINISHES HERE >>>
+Choose one DNS configuration in `/etc/openvpn/server/server.conf`:
+
+- If Pi-hole runs on this Raspberry Pi, keep `push "dhcp-option DNS 10.8.0.1"`. Do not add a public fallback if all ordinary client DNS must be filtered.
+- If Pi-hole runs on another LAN host, replace `10.8.0.1` with that host's private LAN address.
+- If Pi-hole is not installed, replace the Pi-hole line with a public resolver pair. For Cloudflare:
+
+```text
+push "dhcp-option DNS 1.1.1.1"
+push "dhcp-option DNS 1.0.0.1"
 ```
 
-<br>
+The second public resolver provides redundancy. VPN clients may use either resolver, so do not combine Pi-hole with a public resolver when filtering is required. See [Pi-hole advertisement blocker](pihole.md#openvpn-configuration) for the Pi-hole-side setting.
 
-### Dynamic DNS
+If Pi-hole is installed later, update the OpenVPN server configuration at that time. Profiles do not need to be regenerated because DNS settings are pushed by the server:
 
-It would be useful to set up a Dynamic DNS FQDN before starting the installation of OpenVPN. That way, you will be able to easily connect to your server remotely.
-
-A guide is available in ["Dynamic DNS (ddclient & noip DUC)"](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/dynamic-dns.md).
-
-<br>
-
-## Installation
-
-Script needs to run with elevated privileges:
-``` bash
-sudo su
-bash openvpn-install.sh
+```bash
+sudo vim /etc/openvpn/server/server.conf
 ```
 
-In the prompt about your *Public IPv4*, fill in your Dynamic DNS address, configured in the guide [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/dynamic-dns.md) :
-```
-Public IPv4 address / hostname: {YOUR-NOIP-HOSTNAME}
-```
+Remove every public DNS line and add the appropriate Pi-hole address. For Pi-hole on the OpenVPN server:
 
-Rest of the installation options:
-``` bash
-# Protocol
-Which protocol should OpenVPN use?
-   1) UDP (recommended)
-   2) TCP
-Protocol [1-2]: 1
-
-
-# Service port
-What port do you want OpenVPN listening to?
-Port [1194]: 1194
-
-
-# External port (configured at your home router)
-# It's recommended to use a different port
-What will be the external OpenVpn port?
-External Port [1194]: 11194
-
-
-# This will be reconfigured later
-Select a DNS server for the client:
-   1) Current system resolvers
-   2) Google
-   3) 1.1.1.1
-   4) OpenDNS
-   5) Quad9
-   6) AdGuard
-DNS [1-6]: 1
-
-
-# Create the first client's profile
-# The name can contain only letters, numbers, `-` or `_`
-Enter a name for the first client:
-Name [client]: MyMobile
-
-
-OpenVPN installation is ready to begin.
-Press any key to continue...
-
-# [...]
-
-# Enter the password for the first client
-Enter PEM pass phrase:
-```
-
-At this step, the script will install the following packages (if not already installed):
-`openvpn`, `openssl`, `ca-certificates`, `iptables`
-
-```
-The client configuration is available in: ~/MyMobile.ovpn
-New clients can be added by running this script again.
-```
-
-The script is saving the client configuration (*.ovpn* file) in the home directory of the user.
-Since we executed it as `root`, the file is saved in `/root/` directory.
-
-You can copy this file to your home directory and distribute it to the users:
-``` bash
-cp /root/MyMobile.ovpn /home/{YOUR-USERNAME}/MyMobile.ovpn
-```
-
-For long term storage, you can create a directory under `/etc/openvpn/client/` and name it after the current date.
-``` bash
-mkdir /etc/openvpn/client/20241231
-mv /root/*.ovpn /etc/openvpn/client/20241231/
-```
-
-<br>
-
-*At this point, you can exit the `sudo su` mode by typing `exit`.*
-
-<br>
-
-You can always run the script again to `Add a new client`, `Revoke an existing client` or `Remove OpenVPN`:
-```
-OpenVPN is already installed.
-Select an option:
-  1) Add a new client
-  2) Revoke an existing client
-  3) Remove OpenVPN
-  4) Exit
-```
-
-<br>
-
-### UFW configuration
-
-Allow OpenVPN through UFW firewall:
-
-``` bash
-sudo ufw allow openvpn comment 'OpenVPN'
-```
-
-<br>
-<br>
-
-## Extra
-
-### Configure OpenVPN to use Pi-hole
-
-> This step should be executed **AFTER** installing Pi-hole as described [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/pihole.md).
-
-Edit your `server.conf` file located in `/etc/openvpn/server/server.conf` and add the OpenVPN server address as the DNS.
-
-You can keep one more DNS server as a secondary fallback option.
-``` bash
+```text
 push "dhcp-option DNS 10.8.0.1"
-push "dhcp-option DNS 9.9.9.9"
 ```
 
-Add a route for your network, e.g for 192.168.178.0/24, add:
-``` bash
-push "route 192.168.178.0 255.255.255.0"
+Confirm that Pi-hole is the only pushed resolver, then restart OpenVPN:
+
+```bash
+sudo grep -n 'push "dhcp-option DNS' /etc/openvpn/server/server.conf
+sudo systemctl restart openvpn-server@server.service
+sudo systemctl is-active openvpn-server@server.service
 ```
 
-[Restart](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/vpn.md#startstoprestart-openvpn-service) OpenVPN server to apply the changes.
+Expected results: the grep output contains only the intended Pi-hole address and the service returns `active`. Reconnect each VPN client so it receives the changed DNS setting, then verify a lookup in Pi-hole's query log.
 
-#### Another way (NOTE 2022/1/30: not to be used)
-You could achieve the same result by instructing the Pi-hole to listen **only** on `eth0` interface and by adding the appropriate *route* & *DNS* in the `server.conf` file.
+Check that no placeholders remain:
 
-``` bash
-pihole -a -i eth0
+```bash
+sudo grep -n 'REPLACE_' /etc/openvpn/server/server.conf
 ```
 
-Assuming your Raspberry Pi has the IP `192.168.178.31` on a `255.255.255.0` network, the `server.conf` file should be updated:
-``` bash
-push "route 192.168.178.0 255.255.255.0"
-push "dhcp-option DNS 192.168.178.31"
-push "dhcp-option DNS 9.9.9.9"
+Expected result: no output. Any output identifies a value that still needs editing.
+
+Create the state directory referenced by the configuration:
+
+```bash
+sudo install -d -o root -g root -m 700 /var/lib/openvpn/server
 ```
 
-### Start/Stop/Restart OpenVPN service
-``` bash
-sudo service openvpn start
+## 7. Validate before activation
 
-sudo service openvpn stop
+Verify the certificate chain and server private key:
 
-sudo service openvpn restart
+```bash
+sudo openssl verify \
+  -CAfile /etc/openvpn/server/ca.crt \
+  /etc/openvpn/server/server.crt
+sudo openssl pkey \
+  -in /etc/openvpn/server/server.key \
+  -check -noout
+sudo test -s /etc/openvpn/server/tls-crypt.key && echo "tls-crypt key: present"
 ```
 
-### Status check & LOG files
+Expected results:
 
-To check the service status use:
-``` bash
-sudo service openvpn status
+- certificate verification ends with `server.crt: OK`
+- private-key verification reports that the key is valid
+- the final command prints `tls-crypt key: present`
+
+Confirm file ownership and permissions:
+
+```bash
+sudo stat -c '%U:%G %a %n' \
+  /etc/openvpn/server/easy-rsa/pki/private/ca.key \
+  /etc/openvpn/server/server.key \
+  /etc/openvpn/server/tls-crypt.key \
+  /etc/openvpn/server/server.conf
 ```
 
-To check the OpenVPN's network interface use:
-``` bash
-ip a
+Each listed file should be owned by `root:root` and should not be readable by other users. The expected mode is `600`.
 
-# to see **only** the new interface:
-ip a show tun0
+Confirm that OpenVPN has not been activated and that internal UDP port `1194` is free:
+
+```bash
+sudo systemctl is-enabled openvpn-server@server.service || true
+sudo systemctl is-active openvpn-server@server.service || true
+sudo ss -lunp '( sport = :1194 )'
 ```
 
-Log files:
-``` bash
-sudo tail -f /var/log/openvpn.log
-sudo tail -f /var/log/openvpn-status.log
+Expected results at this stage:
 
-grep VPN /var/log/syslog
+- the service is `disabled`
+- the service is `inactive`
+- the socket command displays only its heading and no process bound to UDP `1194`
+
+## 8. Enable forwarding and install nftables rules
+
+Keep the current SSH session open and have a second login or local console available while changing firewall state.
+
+Back up the files that will be changed:
+
+```bash
+vpn_backup_dir="/var/backups/raspberry-born/openvpn-$(date +%Y%m%d-%H%M%S)"
+sudo install -d -o root -g root -m 700 "$vpn_backup_dir"
+sudo cp -a /etc/nftables.conf "$vpn_backup_dir/nftables.conf"
+sudo test ! -e /etc/sysctl.d/90-openvpn-server.conf || \
+  sudo cp -a /etc/sysctl.d/90-openvpn-server.conf "$vpn_backup_dir/"
+echo "Backup: $vpn_backup_dir"
 ```
 
-### Restrictive networks
+Install IPv4 forwarding and the dedicated OpenVPN nftables file:
 
-`UDP` help avoid [TCP meltdown](https://openvpn.net/faq/what-is-tcp-meltdown/) issue but might be restricted on some public networks, like cafè WiFi.
-
-Server's and client's profiles should be edited accordingly:
-``` bash
-proto tcp
-remote {YOUR-EXTERNAL-IP} 443
-socket-flags TCP_NODELAY          #reduce latency
+```bash
+cd ~/Software/raspberry-born
+sudo install -o root -g root -m 644 \
+  src/vpn/server/90-openvpn-server.conf \
+  /etc/sysctl.d/90-openvpn-server.conf
+sudo install -d -o root -g root -m 755 /etc/nftables.d
+sudo install -o root -g root -m 600 \
+  src/vpn/server/vpn-server.nft.template \
+  /etc/nftables.d/vpn-server.nft
+sudo vim /etc/nftables.d/vpn-server.nft
 ```
 
-### Files' security
-``` bash
-sudo su
-chmod 700 /etc/openvpn/client
-# chmod -R 755 /etc/openvpn/server
+Replace `REPLACE_UPLINK_INTERFACE` with the interface recorded in section 2, such as `eth0`.
+
+Ensure `/etc/nftables.conf` contains this line after any `flush ruleset` directive:
+
+```bash
+sudo vim /etc/nftables.conf
 ```
 
-<br>
-
-### Notification email
-
-<!--
-
-> :warning: The method described in the HTML comment section did **NOT** work. The script `OpenVPN-email.sh` should not be used for this method! :warning:
-
-The following steps will add a script which will be called by **OpenVPN server** on client's *connection* or *disconnection*.
-The script will email us on client's connection / disconnection.
-
-Create a file in `~/Software/OpenVPN/OpenVPN-email.sh`
-``` bash
-mkdir ~/Software/OpenVPN
-cd ~/Software/OpenVPN
-
-touch OpenVPN-email.sh
-sudo chown root:root OpenVPN-email.sh
-sudo chmod 744 OpenVPN-email.sh
+```text
+include "/etc/nftables.d/*.nft"
 ```
 
-Add the following code into the file : [OpenVPN-LED.sh](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/OpenVPN-email.sh)
-``` bash
-sudo nano OpenVPN-email.sh
+Validate without changing the live ruleset:
+
+```bash
+sudo grep -n 'REPLACE_' /etc/nftables.d/vpn-server.nft
+sudo nft -c -f /etc/nftables.conf
 ```
 
-Add an *unprivileged* user `openvpn`:
-``` bash
-# adding user 'openvpn'
-useradd -s /usr/sbin/nologin -r -M -d /dev/null openvpn
+Expected results: the first command prints nothing and the nftables check returns without an error.
+
+The dedicated table forwards and masquerades `10.8.0.0/24` but does not replace a separate host-input firewall. On the fresh installation expected by this guide, the router exposes only the forwarded OpenVPN port. If section 2 found an input chain with a drop policy, add UDP `1194` and, when Pi-hole is used, TCP/UDP `53` from `10.8.0.0/24` to that existing firewall instead of creating a second firewall owner.
+
+Apply the reviewed settings:
+
+```bash
+sudo sysctl --system
+sudo systemctl enable nftables
+sudo systemctl restart nftables
 ```
 
-Verify that the new user was created:
-``` bash
-less /etc/passwd
+Verify them:
+
+```bash
+sysctl net.ipv4.ip_forward
+systemctl is-enabled nftables
+systemctl is-active nftables
+sudo nft list table inet raspberry_born_openvpn
+sudo nft list table ip raspberry_born_openvpn_nat
 ```
 
-Give user `openvpn` the right to execute the above script by editing the `sudoers` file:
-``` bash
-sudo visudo
-```
-Add the following in the `sudoers` file, replacing `{YOUR-USERNAME}`:
-``` bash
-openvpn ALL=NOPASSWD: /home/{YOUR-USERNAME}/Software/OpenVPN/OpenVPN-email.sh
-```
+Expected results: forwarding is `1`, nftables is `enabled` and `active`, and both OpenVPN tables are displayed.
 
-Edit the `/etc/openvpn/server/server.conf` file according to the following:
-``` bash
-# change user / group that OpenVPN runs as
-user openvpn
-group nogroup
+## 9. Configure the Internet router
 
-# add script execution using sudo
-script-security 2
-client-connect "/usr/bin/sudo /usr/bin/bash /home/{YOUR-USERNAME}/Software/OpenVPN/OpenVPN-email.sh"
-client-disconnect "/usr/bin/sudo /usr/bin/bash /home/{YOUR-USERNAME}/Software/OpenVPN/OpenVPN-email.sh"
+Give the Raspberry Pi a stable LAN address, preferably with a DHCP reservation. On the Internet router, create this port forward:
+
+```text
+Protocol:       UDP
+External port:  11194
+Destination:    Raspberry Pi LAN address
+Internal port:  1194
 ```
 
--->
+Do not expose SSH, Pi-hole DNS port `53`, or the Pi-hole web interface to the Internet. If the public address changes, configure [Dynamic DNS](dynamic-dns.md) and use that name only in local client profiles.
 
-The following steps will be checking the `/var/log/openvpn-status.log` log file for client's *connection* or *disconnection* and email us accordingly.
+## 10. Start the OpenVPN server
 
-> The script is using the `msmtp` tool. Instructions on how to configure `msmtp` are available [HERE](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/email.md).
-> 
-> 
-> The script is using the `inotify` tool. Install it if not available:
-> 
-> `apt-get install -y inotify-tools`
+Check the systemd unit, then start the exact server instance:
 
-Create a file in `~/Software/OpenVPN/OpenVPN-email.sh`
-``` bash
-mkdir ~/Software/OpenVPN
-cd ~/Software/OpenVPN
-
-touch OpenVPN-email.sh
-sudo chown root:root OpenVPN-email.sh
-sudo chmod 744 OpenVPN-email.sh
+```bash
+sudo systemd-analyze verify openvpn-server@server.service
+sudo systemctl start openvpn-server@server.service
+sudo systemctl status openvpn-server@server.service --no-pager
 ```
 
-Add the following code into the file : [OpenVPN-email.sh](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/OpenVPN-email.sh)
-``` bash
-sudo vim OpenVPN-email.sh
+If the service is `active (running)`, enable it at boot:
+
+```bash
+sudo systemctl enable openvpn-server@server.service
 ```
 
-Add your email in line 13:
-``` bash
-recipient="{YOUR-EMAIL}"
+Verify the listener and tunnel:
+
+```bash
+systemctl is-enabled openvpn-server@server.service
+systemctl is-active openvpn-server@server.service
+ip -brief address show tun0
+sudo ss -lunp '( sport = :1194 )'
+sudo journalctl -u openvpn-server@server.service --no-pager -n 50
 ```
 
-Set the script to run on Raspberry's boot:
-``` bash
-sudo crontab -e
+Expected results:
+
+- the service is `enabled` and `active`;
+- `tun0` is `UP` with `10.8.0.1/24`;
+- OpenVPN listens on UDP `1194`;
+- the journal contains no fatal configuration, certificate or permission error.
+
+## 11. Create a client profile
+
+Install the maintained client command:
+
+```bash
+cd ~/Software/raspberry-born
+sudo install -o root -g root -m 755 \
+  src/vpn/server/manage-client.sh \
+  /usr/local/sbin/manage-openvpn-client
+sudo install -d -o root -g root -m 755 /usr/local/share/raspberry-born
+git rev-parse HEAD | sudo tee \
+  /usr/local/share/raspberry-born/manage-openvpn-client.commit >/dev/null
+sha256sum \
+  src/vpn/server/manage-client.sh \
+  /usr/local/sbin/manage-openvpn-client
 ```
 
-and add the line:
-``` bash
-@reboot sudo bash /home/{YOUR-USERNAME}/Software/OpenVPN/OpenVPN-email.sh
+The two SHA-256 values must match. Installation is normally done once. Three years later, the installed command can still create a client without copying it again:
+
+```bash
+sudo manage-openvpn-client create another-phone
 ```
 
-In order to allow the script to run with `sudo` command, you need to add it in the `visudo` file.
-``` bash
-sudo visudo
+The installed copy does not change when the repository changes, which protects a working server from an unreviewed update.
+
+### Update the installed client command
+
+“Latest” and “known working” are not automatically the same. Do not make this operational command pull or update itself. Before a maintenance session where the latest reviewed version is wanted, inspect what changed:
+
+```bash
+cd ~/Software/raspberry-born
+git status --short
+git fetch origin
+git log --oneline HEAD..origin/main
+git diff HEAD..origin/main -- \
+  src/vpn/server/manage-client.sh \
+  chapters/vpn.md
 ```
 
-Add the following lines, replacing `{USERNAME}` with your username:
-``` bash
-# Give OpenVPN-email.sh script root permissions
-{USERNAME} ALL=(ALL) NOPASSWD: /home/{USERNAME}/Software/OpenVPN/OpenVPN-email.sh
+Do not continue with local changes or an unexpected diff. After reviewing the changes, update and validate the script:
+
+```bash
+git pull --ff-only
+bash -n src/vpn/server/manage-client.sh
+sudo install -b --suffix=.previous -o root -g root -m 755 \
+  src/vpn/server/manage-client.sh \
+  /usr/local/sbin/manage-openvpn-client
+sudo manage-openvpn-client list
 ```
 
-The script will email you the names and source IPs of the currently connected client(s) (every time a new client is connected or disconnected) and with the message *'All clients DISCONNECTED'* when there is no connected client on the OpenVPN server.
+If `list` succeeds, record the new source commit:
 
-#### Debugging
-
-To verify that the script is running, especially after a reboot, execute the following command:
-``` bash
-ps aux | grep "OpenVPN-email.sh"
+```bash
+git rev-parse HEAD | sudo tee \
+  /usr/local/share/raspberry-born/manage-openvpn-client.commit >/dev/null
 ```
 
-And you should have an output like the following:
-``` bash
-root     1917605  0.0  0.0   6956  1724 ?        S    00:45   0:00 bash /home/{USERNAME}/Software/OpenVPN/OpenVPN-email.sh
+`list` is read-only. If it fails, restore the previous installed copy:
+
+```bash
+sudo install -o root -g root -m 755 \
+  /usr/local/sbin/manage-openvpn-client.previous \
+  /usr/local/sbin/manage-openvpn-client
 ```
 
-### Indicator LED
+Show the installed source commit at any time with:
 
-You can add a LED on the GPIO pin and let it blink according to the number of connected clients. Do not forget to use an appropriate resistor on the LED!
-
-Create a file in `~/Software/OpenVPN/OpenVPN-LED.sh`
-``` bash
-mkdir ~/Software/OpenVPN
-cd ~/Software/OpenVPN
-
-touch OpenVPN-LED.sh
+```bash
+cat /usr/local/share/raspberry-born/manage-openvpn-client.commit
 ```
 
-Add the following code into the file : [OpenVPN-LED.sh](https://github.com/smyrnakis/raspberry-born/blob/main/src/vpn/OpenVPN-LED.sh)
+Create one certificate per phone, laptop or Raspberry Pi. For an interactive device:
 
-*The code above uses GPIO16 for the YELLOW LED.*
-
-Make the script executable:
-``` bash
-chmod a+x ~/Software/OpenVPN/OpenVPN-LED.sh
+```bash
+sudo manage-openvpn-client create my-phone
 ```
 
-Test the script by *uncommenting* the `echo` line:
-``` bash
-[...]
+Enter the public IP address or DDNS name when prompted, then set a strong client-key password and enter the CA passphrase. The resulting profile is `/root/openvpn-client-exports/my-phone.ovpn`, mode `600`.
 
-if [[ ! -z "$CONNCLIENTS" ]]; then
-    echo "$CONNCLIENTS" | while read LINE; do
-        #echo "OpenVPN-LED : blink!"
-        longBlink
-        sleep 0.5
-    done
-fi
+The profile uses only certificates; it does not require a separate OpenVPN username and password. In OpenVPN Connect, import the profile and allow the app to save the private-key password in the device keychain. A strong screen lock protects that saved credential.
+
+### Unattended Raspberry Pi client
+
+Create an unencrypted device-specific key:
+
+```bash
+sudo manage-openvpn-client create-unattended remote-pi
 ```
 
-``` bash
-sudo bash ~/Software/OpenVPN/OpenVPN-LED.sh
+Use this only when the imported profile will be owned by `root`, mode `600`, and can be revoked promptly if the device is lost.
+
+Transfer a profile through verified SSH, SFTP or WinSCP. One method is to place a temporary copy in the login user's home directory:
+
+```bash
+sudo install -o "$USER" -g "$(id -gn)" -m 600 \
+  /root/openvpn-client-exports/my-phone.ovpn \
+  "$HOME/my-phone.ovpn"
 ```
 
-Connect on the OpenVPN server. If you can see the LED blinking and the message `OpenVPN-LED : blink!` on the console the script and the hardware are working fine!
+This copies the root-only profile into the current login user's home directory so that the user can download it over SSH:
 
-Comment out the two `echo` command again.
+- `-o "$USER"` makes the current login user the owner;
+- `-g "$(id -gn)"` assigns that user's primary group;
+- `-m 600` allows only that user to read or modify the copy;
+- the source under `/root` remains unchanged.
 
-Set the script to run on Raspberry's boot:
-``` bash
-sudo crontab -e
+The shell resolves `$USER`, `$(id -gn)` and `$HOME` before `sudo` runs. The destination is only a temporary transfer copy and is deleted after import.
+
+On the Windows laptop, run in PowerShell and keep SSH host-key verification enabled:
+
+```powershell
+scp {USERNAME}@{RASPBERRY-PI-LAN-IP}:~/my-phone.ovpn "$env:USERPROFILE\Downloads\my-phone.ovpn"
 ```
 
-and add the line:
-``` bash
-@reboot bash /home/{YOUR-USERNAME}/Software/OpenVPN/OpenVPN-LED.sh
+After importing the profile and storing an encrypted backup, remove both temporary transfer copies:
+
+```bash
+rm "$HOME/my-phone.ovpn"
+sudo rm /root/openvpn-client-exports/my-phone.ovpn
 ```
 
-<br>
+Never email a profile or commit it. An inline `.ovpn` profile contains the client private key and `tls-crypt` key.
 
-### A note on security
+## 12. Test from outside the home network
 
-For security purposes, it is recommended that the CA machine should be separate from the machine running OpenVPN. If you lose control of your CA private key, you can no longer trust any certificates from this CA. Anyone with access to this CA private key can sign new certificates without your knowledge, which then can connect to your OpenVPN server without needing to modify anything on the VPN server. Place your CA files on storage that can be offline as much as possible, only to be activated when you need to get a new certificate for a client or server.
+Disconnect the test device from the home Wi-Fi and use mobile data or another Internet connection. Connect with OpenVPN Connect, then verify:
 
-<br>
+1. The profile connects without a certificate error.
+2. The device's public IP is the home connection's public IP because this is a full tunnel.
+3. A private LAN service is reachable.
+4. DNS works.
+5. If Pi-hole is configured, the test lookup appears in Pi-hole's query log.
+
+Cloudflare's diagnostic page can confirm the public IPv4 address: open `https://1.1.1.1/cdn-cgi/trace` and check the `ip=` line.
+
+On the Raspberry Pi, inspect the connection and firewall counters:
+
+```bash
+sudo cat /run/openvpn-server/status-server.log
+sudo journalctl -u openvpn-server@server.service --since '-10 minutes' --no-pager
+sudo nft list table inet raspberry_born_openvpn
+sudo nft list table ip raspberry_born_openvpn_nat
+```
+
+The status file should list the client certificate name. Forwarding and NAT counters should increase while the client uses the tunnel. The status file can contain a client's public source address, so do not publish it.
+
+If Pi-hole is not installed, confirm that the client received the selected public resolvers. If Pi-hole is installed, confirm that it received only the Pi-hole address. Android Private DNS, browser DNS-over-HTTPS and application-specific encrypted DNS can bypass the resolver pushed by OpenVPN.
+
+## 13. Install certificate-expiry reminders
+
+> [!WARNING]
+> Install and test the durable notification queue from [email.md](email.md) first. Without it, expiry warnings are written only to the journal and are not emailed.
+
+Install the checker and daily timer:
+
+```bash
+cd ~/Software/raspberry-born
+sudo install -o root -g root -m 755 \
+  src/vpn/server/raspi-vpn-cert-check \
+  /usr/local/sbin/raspi-vpn-cert-check
+sudo install -o root -g root -m 644 \
+  src/vpn/server/raspi-vpn-cert-check.service \
+  /etc/systemd/system/raspi-vpn-cert-check.service
+sudo install -o root -g root -m 644 \
+  src/vpn/server/raspi-vpn-cert-check.timer \
+  /etc/systemd/system/raspi-vpn-cert-check.timer
+sudo systemctl daemon-reload
+sudo /usr/local/sbin/raspi-vpn-cert-check --report
+sudo systemctl enable --now raspi-vpn-cert-check.timer
+```
+
+The report shows the remaining days for the CA, server and client certificates. The timer warns at 90, 60, 30, 14, 7 and 1 days for server/client certificates. CA warnings begin at 180 days.
+
+Verify the schedule and latest run:
+
+```bash
+systemctl list-timers raspi-vpn-cert-check.timer --no-pager
+sudo systemctl start raspi-vpn-cert-check.service
+sudo journalctl -u raspi-vpn-cert-check.service --no-pager -n 30
+```
+
+A healthy check produces no email. `--report` always prints the certificate inventory.
+
+### Renew a server certificate
+
+Back up the PKI first. Easy-RSA 3.1 and 3.2 handle renewal internals differently, so copy both the renewed certificate and key afterward:
+
+```bash
+cd /etc/openvpn/server/easy-rsa
+vpn_pki_backup="/root/openvpn-pki-$(date +%Y%m%d-%H%M%S)"
+sudo cp -a pki "$vpn_pki_backup"
+sudo ./easyrsa --nopass renew server
+sudo install -o root -g root -m 644 pki/issued/server.crt /etc/openvpn/server/server.crt
+sudo install -o root -g root -m 600 pki/private/server.key /etc/openvpn/server/server.key
+sudo openssl verify -CAfile pki/ca.crt pki/issued/server.crt
+sudo systemctl restart openvpn-server@server.service
+sudo systemctl is-active openvpn-server@server.service
+```
+
+After the renewed certificate works, revoke the superseded certificate and refresh the CRL:
+
+```bash
+sudo ./easyrsa revoke-renewed server superseded
+sudo ./easyrsa gen-crl
+sudo install -o root -g root -m 644 pki/crl.pem /etc/openvpn/server/crl.pem
+```
+
+Renewing a client certificate also requires exporting and importing a replacement profile:
+
+```bash
+cd /etc/openvpn/server/easy-rsa
+sudo ./easyrsa renew my-phone
+sudo manage-openvpn-client export my-phone
+```
+
+Transfer and import the replacement profile as in section 11. Revoke the superseded client certificate after the replacement connects successfully.
+
+```bash
+cd /etc/openvpn/server/easy-rsa
+sudo ./easyrsa revoke-renewed my-phone superseded
+sudo ./easyrsa gen-crl
+sudo install -o root -g root -m 644 pki/crl.pem /etc/openvpn/server/crl.pem
+```
+
+CA expiry is different: every server and client must receive the replacement CA. When the 180-day CA warning arrives, make an encrypted PKI backup and plan a controlled CA rollover rather than waiting for expiry.
+
+## 14. List or revoke clients
+
+List issued client certificates:
+
+```bash
+sudo manage-openvpn-client list
+```
+
+Revoke a lost, replaced or retired device:
+
+```bash
+sudo manage-openvpn-client revoke my-phone
+```
+
+Revocation updates the server CRL. A currently connected client may remain connected until it reconnects; restart the OpenVPN service only when immediate disconnection justifies interrupting every client.
+
+## 15. Test reboot recovery
+
+Perform this only after remote access, OpenVPN, nftables and an alternative recovery path have been verified:
+
+```bash
+sudo reboot
+```
+
+After the Raspberry Pi returns:
+
+```bash
+systemctl is-active nftables openvpn-server@server.service
+ip -brief address show tun0
+sudo ss -lunp '( sport = :1194 )'
+systemctl list-timers raspi-vpn-cert-check.timer --no-pager
+```
+
+Both services should be active, `tun0` should have `10.8.0.1/24`, UDP `1194` should be listening, and the certificate timer should have a future run time. Repeat the external client test.
+
+## 16. Roll back the service configuration
+
+Remove the router port forward first. On the Raspberry Pi:
+
+```bash
+sudo systemctl disable --now raspi-vpn-cert-check.timer
+sudo systemctl disable --now openvpn-server@server.service
+sudo rm -f /etc/nftables.d/vpn-server.nft
+sudo rm -f /etc/sysctl.d/90-openvpn-server.conf
+sudo cp -a /var/backups/raspberry-born/{BACKUP-DIRECTORY}/nftables.conf /etc/nftables.conf
+sudo sysctl --system
+sudo systemctl restart nftables
+```
+
+If the forwarding sysctl file existed before installation, restore its backed-up copy instead of removing it. This rollback leaves the PKI intact. Do not delete `/etc/openvpn/server/easy-rsa` until its encrypted backup and all certificate-revocation requirements have been reviewed.
+
+Related guides:
+
+- [Athens-Crete site-to-site VPN](vpn_crete-athens.md)
+- [OpenVPN health monitoring](vpn-watchdog.md)
+- [Archived superseded OpenVPN material](../archive/openvpn/README.md)
+
+Technical references: [OpenVPN 2.6 manual](https://openvpn.net/community-docs/community-articles/openvpn-2-6-manual.html), [Debian OpenVPN service layout](https://wiki.debian.org/OpenVPN), and [Easy-RSA documentation](https://github.com/OpenVPN/easy-rsa/tree/master/doc).
