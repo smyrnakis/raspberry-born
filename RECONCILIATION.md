@@ -48,7 +48,10 @@ As of 2026-10-06 after the approved notification and UPS refinement commits:
 - The multi-recipient and boot-bound notification extension is committed
   locally as `e2eb2f1`.
 - The UPS incident-message and outage-summary refinement is committed locally
-  in its focused change. No generic repository update was deployed.
+  as `046dc9f`. No generic repository update was deployed.
+- Against the current local `origin/main` reference, the branch is 15 commits
+  ahead and one commit behind. The remote-only commit is `dc51366` (`Link
+  Raspberry Pi network monitor`) and changes only `README.md`.
 - The deferred untracked chapters remain present: `grafana.md` and `mosquitto.md`.
 - The durable notification, hardware-watchdog, UPS, automatic-updates and boot-report changes are committed locally in separate focused commits. None has been deployed.
 
@@ -943,19 +946,24 @@ Status: completed and verified.
 - Committed the generic notification extension locally as `e2eb2f1`.
 - The Raspi3-specific UPS implementation had previously been validated and
   synchronized with its saved bundle. The generic UPS refinement was committed
-  locally without deployment or Raspberry Pi changes.
+  locally as `046dc9f` without deployment or Raspberry Pi changes.
+- Inspected remote-only commit `dc51366`. Its two-line README addition links the
+  separate `raspi-network-monitor` repository and does not replace the local
+  README additions, but it still requires an approved integration step.
 - Kept all real recipient addresses out of Git. Nothing was pushed or deployed,
   and no Raspberry Pi was contacted or changed.
 
 ## Next controlled chunk
 
-1. Review `chapters/2FA.md` and `src/archive/pihole.md` as the next focused
+1. Review and, after approval, integrate remote-only commit `dc51366` while
+   preserving the reconciliation branch's README additions.
+2. Review `chapters/2FA.md` and `src/archive/pihole.md` as the following focused
    cleanup, including removal of hardcoded usernames.
-2. Keep native nftables/OpenVPN parsing and deployment verification as explicit
+3. Keep native nftables/OpenVPN parsing and deployment verification as explicit
    fresh-Raspberry-Pi checks; do not claim deployment evidence from Windows
    validation.
-3. Decide later, per device, whether proven recovery justifies enabling either
+4. Decide later, per device, whether proven recovery justifies enabling either
    the VPN-watchdog reboot fallback or the available conditional 04:45 update
    reboot profile.
-4. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or
+5. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or
    push.
