@@ -59,6 +59,8 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 
 [Pi-hole](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/pihole.md) - install & configure *Pi-hole* ad-blocker (better install *Pi-hole* **after** installing *OpenVPN*)
 
+[Raspberry Pi network monitor](https://github.com/smyrnakis/raspi-network-monitor) - local network reliability monitoring with incident history, availability, and latency dashboards
+
 [SSH keys](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/ssh-keys.md) - use a different SSH key for each laptop with Windows Terminal and WinSCP
 
 [Thingspeak monitoring system](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/thingSpeak.md) - monitor Raspi's CPU temp & load averages *and* ambient temperature & humidity (using *DHT11* sensor & [*Thingspeak*](https://thingspeak.com/) platform)
