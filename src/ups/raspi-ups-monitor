@@ -104,7 +104,7 @@ write_state() {
 }
 
 clear_power_state() {
-    rm -f -- "$STATE_DIR"/power-{active,start-epoch,start-iso,next-update,initial-charge,min-charge,low-alerted,shutdown-alerted}
+    rm -f -- "$STATE_DIR"/power-{active,start-epoch,start-iso,next-update,initial-charge,min-charge,low-alerted,shutdown-alerted,shutdown-iso,shutdown-boot-id}
     rm -f -- "$SAMPLE_FILE"
 }
 
@@ -148,6 +148,18 @@ duration_text() {
     elif (( hours > 0 )); then printf '%d h %d min' "$hours" "$minutes"
     elif (( minutes > 0 )); then printf '%d min %d s' "$minutes" "$seconds"
     else printf '%d s' "$seconds"; fi
+}
+
+duration_minutes() {
+    local total=$1
+    (( total < 0 )) && total=0
+    printf '%d min' "$((total / 60))"
+}
+
+current_boot_id() {
+    if [[ -r /proc/sys/kernel/random/boot_id ]]; then
+        tr -d '\n' </proc/sys/kernel/random/boot_id
+    fi
 }
 
 record_sample() {
@@ -219,32 +231,75 @@ service_state() {
     printf '%s' "${state:-n/a}"
 }
 
-format_snapshot() {
+format_current_condition() {
     local status
     status=$(ups_value ups.status)
-    printf '\nUPS status\n%s\n' '----------'
-    printf '%-30s %s\n' 'UPS State:' "$(status_description "$status")"
-    printf '%-30s %s\n' 'UPS Battery Charge:' "$(metric "$(ups_value battery.charge)" '%')"
-    printf '%-30s %s\n' 'UPS Battery Voltage:' "$(metric "$(ups_value battery.voltage)" 'V')"
-    printf '%-30s %s\n' 'UPS Estimated Runtime:' "$(runtime_display)"
-    printf '%-30s %s\n' 'UPS Load:' "$(metric "$(ups_value ups.load)" '%')"
-    printf '%-30s %s\n' 'UPS Input Voltage:' "$(metric "$(ups_value input.voltage)" 'V')"
-    printf '%-30s %s\n' 'UPS Output Voltage:' "$(metric "$(ups_value output.voltage)" 'V')"
-    printf '%-30s %s\n' 'UPS Input Frequency:' "$(metric "$(ups_value input.frequency)" 'Hz')"
-    printf '%-30s %s\n' 'UPS Temperature:' "$(metric "$(ups_value ups.temperature)" 'C')"
-    printf '\nNUT services\n%s\n' '------------'
-    printf '%-30s %s\n' 'UPS Driver:' "$(service_state "$UPS_DRIVER_SERVICE")"
-    printf '%-30s %s\n' 'NUT Server:' "$(service_state "$NUT_SERVER_SERVICE")"
-    printf '%-30s %s\n' 'NUT Monitor:' "$(service_state "$NUT_MONITOR_SERVICE")"
+    printf '\n===== CURRENT CONDITION =====\n\n'
+    printf 'Status: %s\n' "$(status_description "$status")"
+    printf 'Battery: %s | %s\n' \
+        "$(metric "$(ups_value battery.charge)" '%')" \
+        "$(metric "$(ups_value battery.voltage)" 'V')"
+    printf 'Estimated remaining: %s\n' "$(runtime_display)"
+    printf 'UPS load: %s\n' "$(metric "$(ups_value ups.load)" '%')"
+}
+
+format_power() {
+    printf '\n===== POWER =====\n\n'
+    printf 'Input: %s | %s\n' \
+        "$(metric "$(ups_value input.voltage)" 'V')" \
+        "$(metric "$(ups_value input.frequency)" 'Hz')"
+    printf 'Output: %s\n' "$(metric "$(ups_value output.voltage)" 'V')"
+}
+
+format_ups_details() {
+    printf '\n\n===== UPS DETAILS =====\n\n'
+    printf 'Temperature: %s\n' "$(metric "$(ups_value ups.temperature)" 'C')"
+    printf 'Shutdown delay: %s\n' "$(metric "$(ups_value ups.delay.shutdown)" 's after command')"
+    printf 'Restart delay: %s\n' "$(metric "$(ups_value ups.delay.start)" 's after power returns')"
+    printf 'Type: %s\n' "$(metric "$(ups_value ups.type)")"
+    printf 'Firmware: %s\n' "$(metric "$(ups_value ups.firmware)")"
+}
+
+format_services() {
+    printf '\n===== NUT SERVICES =====\n\n'
+    printf 'UPS driver: %s\n' "$(service_state "$UPS_DRIVER_SERVICE")"
+    printf 'NUT server: %s\n' "$(service_state "$NUT_SERVER_SERVICE")"
+    printf 'NUT monitor: %s\n' "$(service_state "$NUT_MONITOR_SERVICE")"
+}
+
+format_snapshot() {
+    format_current_condition
+    format_power
+    format_ups_details
+    format_services
+}
+
+format_restored_snapshot() {
+    local status
+    status=$(ups_value ups.status)
+    printf '\n===== CURRENT POWER =====\n\n'
+    printf 'Status: %s\n' "$(status_description "$status")"
+    printf 'Input: %s | %s\n' \
+        "$(metric "$(ups_value input.voltage)" 'V')" \
+        "$(metric "$(ups_value input.frequency)" 'Hz')"
+    printf 'Output: %s\n' "$(metric "$(ups_value output.voltage)" 'V')"
+    printf 'Battery: %s | %s\n' \
+        "$(metric "$(ups_value battery.charge)" '%')" \
+        "$(metric "$(ups_value battery.voltage)" 'V')"
+    printf 'UPS load: %s\n' "$(metric "$(ups_value ups.load)" '%')"
+    format_ups_details
+    format_services
 }
 
 queue_notice() {
-    local subject=$1 body=$2 key=$3 event_time=$4
-    if [[ -n "$key" ]]; then
-        printf '%s\n' "$body" | "$NOTIFY" --key "$key" --event-time "$event_time" "$subject"
-    else
-        printf '%s\n' "$body" | "$NOTIFY" --event-time "$event_time" "$subject"
+    local subject=$1 body=$2 key=$3 event_time=$4 delivery_scope=${5:-durable}
+    local -a args
+    args=(--event-time "$event_time")
+    [[ -z "$key" ]] || args=(--key "$key" "${args[@]}")
+    if [[ "$delivery_scope" == boot-only ]]; then
+        args+=(--boot-only)
     fi
+    printf '%s\n' "$body" | "$NOTIFY" "${args[@]}" "$subject"
 }
 
 current_charge() {
@@ -267,20 +322,19 @@ begin_outage() {
     local epoch=$1 iso=$2 charge body
     if [[ -r "$STATE_DIR/power-active" ]]; then record_sample "$epoch"; update_min_charge; return; fi
     charge=$(current_charge)
+    rm -f -- "$STATE_DIR"/power-{shutdown-alerted,shutdown-iso,shutdown-boot-id}
     write_state power-active 1; write_state power-start-epoch "$epoch"; write_state power-start-iso "$iso"
     write_state power-next-update "$((epoch + BATTERY_UPDATE_SECONDS))"
     write_state power-initial-charge "${charge:-n/a}"; write_state power-min-charge "${charge:-n/a}"
     rm -f -- "$SAMPLE_FILE"; record_sample "$epoch"
-    body="UPS POWER FAILURE
-=================
-Host:                       $host
-Event:                      Utility power was lost
-Occurred:                   $iso
-Power source:               Battery
-Time on battery:            0 s
+    body="POWER LOST
+
+Host: $host
+Power lost: $iso
+Time on battery: 0 min
 $(format_snapshot)"
-    queue_notice "[$host] UPS: Utility power lost" "$body" "ups-incident-$epoch" "$iso" || return 1
-    logger -t "$LOG_TAG" "Utility power lost; UPS is on battery"
+    queue_notice "[$host] UPS | Power lost" "$body" "ups-incident-$epoch" "$iso" || return 1
+    logger -t "$LOG_TAG" "Power lost; UPS is on battery"
 }
 
 send_update() {
@@ -288,14 +342,14 @@ send_update() {
     start=$(read_number "$STATE_DIR/power-start-epoch" "$epoch")
     start_iso=$(read_text "$STATE_DIR/power-start-iso" "$iso"); elapsed=$((epoch-start))
     update_min_charge
-    body="UPS POWER FAILURE UPDATE
-========================
-Host:                       $host
-Power failure began:        $start_iso
-Status measured:            $iso
-Time on battery:            $(duration_text "$elapsed")
+    body="UPS ON BATTERY
+
+Host: $host
+Outage started: $start_iso
+Status measured: $iso
+Time on battery: $(duration_text "$elapsed")
 $(format_snapshot)"
-    queue_notice "[$host] UPS: On battery - $(duration_text "$elapsed")" "$body" "ups-incident-$start" "$iso" || return 1
+    queue_notice "[$host] UPS | On battery $(duration_minutes "$elapsed")" "$body" "ups-incident-$start" "$iso" || return 1
     write_state power-next-update "$((epoch + BATTERY_UPDATE_SECONDS))"
 }
 
@@ -305,51 +359,81 @@ send_low_battery() {
     [[ ! -r "$STATE_DIR/power-low-alerted" ]] || return 0
     start=$(read_number "$STATE_DIR/power-start-epoch" "$epoch"); elapsed=$((epoch-start))
     body="UPS LOW BATTERY
-===============
-Host:                       $host
-Event:                      The UPS reported low battery
-Reported:                   $iso
-Time on battery:            $(duration_text "$elapsed")
-Expected action:            NUT will initiate a clean system shutdown
+
+Host: $host
+Low battery reported: $iso
+Time on battery: $(duration_text "$elapsed")
+Expected action: NUT will initiate a clean system shutdown
 $(format_snapshot)"
-    queue_notice "[$host] UPS: LOW BATTERY" "$body" "ups-low-battery-$start" "$iso" || return 1
+    queue_notice "[$host] UPS | LOW BATTERY" "$body" "ups-low-battery-$start" "$iso" || return 1
     write_state power-low-alerted 1; logger -t "$LOG_TAG" "UPS reported low battery"
 }
 
 send_shutdown() {
-    local epoch=$1 iso=$2 kind=$3 start body
+    local epoch=$1 iso=$2 kind=$3 start start_iso elapsed body boot_id
     [[ ! -r "$STATE_DIR/power-shutdown-alerted" ]] || return 0
     start=$(read_number "$STATE_DIR/power-start-epoch" "$epoch")
-    body="UPS EMERGENCY SHUTDOWN
-======================
-Host:                       $host
-Event:                      NUT initiated a clean system shutdown
-NUT notification:           $kind
-Shutdown initiated:         $iso
+    start_iso=$(read_text "$STATE_DIR/power-start-iso" "$iso")
+    elapsed=$((epoch-start))
+    boot_id=$(current_boot_id)
+    write_state power-shutdown-iso "$iso"
+    [[ -z "$boot_id" ]] || write_state power-shutdown-boot-id "$boot_id"
+    body="UPS SHUTDOWN INITIATED
+
+Host: $host
+NUT notification: $kind
+Outage started: $start_iso
+Shutdown initiated: $iso
+Time since power loss: $(duration_text "$elapsed")
+
+===== EXPECTED ACTION =====
+
+The Raspberry Pi should shut down cleanly. The UPS should cut its output after
+the configured shutdown delay, then restore output after power returns and the
+configured restart delay expires.
 $(format_snapshot)"
-    queue_notice "[$host] UPS: Shutdown initiated" "$body" "ups-shutdown-$start" "$iso" || return 1
+    queue_notice "[$host] UPS | Shutdown initiated" "$body" "ups-shutdown-$start" "$iso" boot-only || return 1
     write_state power-shutdown-alerted 1; logger -t "$LOG_TAG" "NUT initiated shutdown ($kind)"
 }
 
 recover_power() {
     local epoch=$1 iso=$2 start start_iso elapsed initial minimum current body
+    local shutdown_iso shutdown_boot_id boot_id shutdown_status restarted_status
     [[ -r "$STATE_DIR/power-active" ]] || return 0
     start=$(read_number "$STATE_DIR/power-start-epoch" "$epoch")
     start_iso=$(read_text "$STATE_DIR/power-start-iso" "$iso"); elapsed=$((epoch-start))
     initial=$(read_text "$STATE_DIR/power-initial-charge" n/a)
     minimum=$(read_text "$STATE_DIR/power-min-charge" n/a); current=$(current_charge)
-    body="UPS POWER RESTORED
-==================
-Host:                       $host
-Power failure began:        $start_iso
-Power restored:             $iso
-Outage duration:            $(duration_text "$elapsed")
-Initial battery charge:     $(metric "$initial" '%')
-Minimum battery charge:     $(metric "$minimum" '%')
-Current battery charge:     $(metric "$current" '%')
-$(format_snapshot)"
-    queue_notice "[$host] UPS: Utility power restored" "$body" "ups-incident-$start" "$iso" || return 1
-    clear_power_state; logger -t "$LOG_TAG" "Utility power restored after $(duration_text "$elapsed")"
+    shutdown_iso=$(read_text "$STATE_DIR/power-shutdown-iso")
+    shutdown_boot_id=$(read_text "$STATE_DIR/power-shutdown-boot-id")
+    boot_id=$(current_boot_id)
+    shutdown_status=No; restarted_status=No
+    if [[ -n "$shutdown_iso" ]]; then
+        shutdown_status="Initiated; reboot not detected"
+        if [[ -n "$shutdown_boot_id" && -n "$boot_id" && "$shutdown_boot_id" != "$boot_id" ]]; then
+            shutdown_status=Yes; restarted_status=Yes
+        fi
+    else
+        shutdown_iso=n/a
+    fi
+    body="POWER RESTORED
+
+Host: $host
+Outage started: $start_iso
+Power restored: $iso
+Total outage duration: $(duration_text "$elapsed")
+
+===== OUTAGE SUMMARY =====
+
+Battery at start: $(metric "$initial" '%')
+Lowest battery level: $(metric "$minimum" '%')
+Battery after restoration: $(metric "$current" '%')
+Raspberry Pi shutdown: $shutdown_status
+Shutdown initiated: $shutdown_iso
+Raspberry Pi restarted: $restarted_status
+$(format_restored_snapshot)"
+    queue_notice "[$host] UPS | Power restored after $(duration_minutes "$elapsed")" "$body" "ups-incident-$start" "$iso" || return 1
+    clear_power_state; logger -t "$LOG_TAG" "Power restored after $(duration_text "$elapsed")"
 }
 
 comm_threshold() {
@@ -373,7 +457,7 @@ Host:                       $host
 Failure duration:           $(duration_text "$elapsed")
 Status measured:            $iso
 Impact:                     UPS status and automatic shutdown are unavailable"
-        queue_notice "[$host] UPS: Communication failure - $(duration_text "$elapsed")" "$body" "ups-communication-$start" "$iso" || return 1
+        queue_notice "[$host] UPS | Communication failure - $(duration_text "$elapsed")" "$body" "ups-communication-$start" "$iso" || return 1
         index=$((index+1)); while (( $(comm_threshold "$index" "$start") <= epoch )); do index=$((index+1)); done
         write_state comm-reminder-index "$index"; return 0
     fi
@@ -389,7 +473,7 @@ Host:                       $host
 Failure began:              $iso
 Consecutive failed checks:  $count
 Impact:                     UPS status and automatic shutdown are unavailable"
-    queue_notice "[$host] UPS: Communication failure" "$body" "ups-communication-$first" "$iso" || return 1
+    queue_notice "[$host] UPS | Communication failure" "$body" "ups-communication-$first" "$iso" || return 1
     write_state comm-active 1; write_state comm-start-epoch "$first"; write_state comm-start-iso "$iso"; write_state comm-reminder-index 0
     logger -t "$LOG_TAG" "UPS communication failure detected"
 }
@@ -405,7 +489,7 @@ Host:                       $host
 Communication restored:     $iso
 Failure duration:           $(duration_text "$elapsed")
 $(format_snapshot)"
-    queue_notice "[$host] UPS: Communication restored" "$body" "ups-communication-$start" "$iso" || return 1
+    queue_notice "[$host] UPS | Communication restored" "$body" "ups-communication-$start" "$iso" || return 1
     clear_comm_state; logger -t "$LOG_TAG" "UPS communication restored after $(duration_text "$elapsed")"
 }
 
@@ -420,7 +504,7 @@ process_event() {
         LOWBATT) send_low_battery "$epoch" "$iso";; FSD|SHUTDOWN) send_shutdown "$epoch" "$iso" "$kind";;
         REPLBATT)
             printf -v body 'The UPS reported a battery replacement warning at %s.\n%s' "$iso" "$(format_snapshot)"
-            queue_notice "[$host] UPS: Battery replacement required" "$body" ups-replace-battery "$iso"
+            queue_notice "[$host] UPS | Battery replacement required" "$body" ups-replace-battery "$iso"
             ;;
         COMMBAD|NOCOMM|COMMOK) :;; *) return 1;;
     esac
@@ -436,7 +520,7 @@ Simulated event:            $label
 Occurred:                   $iso
 No UPS state, NUT service or power source was changed.
 $(format_snapshot)"
-    queue_notice "[$host] TEST - UPS $label" "$body" "" "$iso" || return 1
+    queue_notice "[$host] TEST | UPS $label" "$body" "" "$iso" || return 1
     printf 'Queued test notification: %s\n' "$label"
 }
 
@@ -462,11 +546,11 @@ case "${1:-}" in
         printf 'Runtime estimator self-test: %s\n' "$test_result"
         exit 0
         ;;
-    --simulate-power-failure) simulate "utility power lost"; exit $?;;
-    --simulate-power-update) simulate "on-battery update"; exit $?;;
+    --simulate-power-failure) simulate "power lost"; exit $?;;
+    --simulate-power-update) simulate "on battery 5 min"; exit $?;;
     --simulate-low-battery) simulate "low battery"; exit $?;;
     --simulate-shutdown) simulate "shutdown initiated"; exit $?;;
-    --simulate-power-restored) simulate "utility power restored"; exit $?;;
+    --simulate-power-restored) simulate "power restored after 18 min"; exit $?;;
     --simulate-communication-failure) simulate "communication failure"; exit $?;;
     --simulate-communication-restored) simulate "communication restored"; exit $?;;
     "") :;;
@@ -484,7 +568,7 @@ if (( UPS_DATA_AVAILABLE == 0 )); then handle_comm_failure "$now_epoch" "$now_is
 handle_comm_success "$now_epoch" "$now_iso" || exit 1
 status=$(ups_value ups.status)
 if [[ " $status " != *" FSD "* && ! -r "$STATE_DIR/power-active" ]]; then
-    rm -f -- "$STATE_DIR/power-low-alerted" "$STATE_DIR/power-shutdown-alerted"
+    rm -f -- "$STATE_DIR"/power-{low-alerted,shutdown-alerted,shutdown-iso,shutdown-boot-id}
 fi
 if [[ " $status " == *" OB "* || " $status " == *" LB "* ]]; then
     begin_outage "$now_epoch" "$now_iso" || exit 1

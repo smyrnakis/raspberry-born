@@ -35,7 +35,7 @@ Audit date: 2026-09-19
 
 ## Current integration state
 
-As of 2026-10-06 after the approved OpenVPN server workflow commit:
+As of 2026-10-06 after the approved notification and UPS refinement commits:
 
 - Reconciliation branch: `codex/reconcile-2026-09-19`.
 - The branch is based on `origin/main` at `2086acc` and contains the planning checkpoint plus focused reconciliation commits.
@@ -45,6 +45,10 @@ As of 2026-10-06 after the approved OpenVPN server workflow commit:
 - The automatic-updates, boot-report and VPN-watchdog commits are complete.
 - The maintained OpenVPN server workflow and byte-preserved legacy archive are
   committed locally as `5345789`.
+- The multi-recipient and boot-bound notification extension is committed
+  locally as `e2eb2f1`.
+- The UPS incident-message and outage-summary refinement is committed locally
+  in its focused change. No generic repository update was deployed.
 - The deferred untracked chapters remain present: `grafana.md` and `mosquitto.md`.
 - The durable notification, hardware-watchdog, UPS, automatic-updates and boot-report changes are committed locally in separate focused commits. None has been deployed.
 
@@ -924,24 +928,34 @@ Status: completed and verified.
   `5345789`. Nothing was pushed or deployed, and no Raspberry Pi was contacted.
 - Extended the generic durable notification design so `MAIL_TO` can contain one or more comma-separated recipient addresses without spaces.
 - Updated both installer-time and dispatcher-time validation, separate SMTP envelope recipients, the visible `To:` header, the public configuration example and the notification documentation.
+- Reviewed the concurrent notification and UPS updates together. The generic
+  UPS monitor correctly depends on the extended `raspi-notify` interface, and
+  the boot-only shutdown notice remains separate from the durable restoration
+  summary.
 - Tightened sender and recipient validation so the implementation now rejects
   the quotes, display names, semicolons and angle brackets prohibited by the
   documentation.
+- General UPS subject examples now use `[HOSTNAME]`, and the shutdown notice
+  describes the expected shutdown rather than claiming success before it
+  completes.
 - Notification Bash syntax, recipient-list rejection, boot-only argument
   ordering and whitespace checks passed locally.
-- Kept all real recipient addresses out of Git. The change is local and uncommitted; no Raspberry Pi was contacted or changed and nothing was pushed.
+- Committed the generic notification extension locally as `e2eb2f1`.
+- The Raspi3-specific UPS implementation had previously been validated and
+  synchronized with its saved bundle. The generic UPS refinement was committed
+  locally without deployment or Raspberry Pi changes.
+- Kept all real recipient addresses out of Git. Nothing was pushed or deployed,
+  and no Raspberry Pi was contacted or changed.
 
 ## Next controlled chunk
 
-1. Review and, after approval, commit the generic notification changes before
-   the dependent UPS presentation and outage-summary changes.
+1. Review `chapters/2FA.md` and `src/archive/pihole.md` as the next focused
+   cleanup, including removal of hardcoded usernames.
 2. Keep native nftables/OpenVPN parsing and deployment verification as explicit
    fresh-Raspberry-Pi checks; do not claim deployment evidence from Windows
    validation.
 3. Decide later, per device, whether proven recovery justifies enabling either
    the VPN-watchdog reboot fallback or the available conditional 04:45 update
    reboot profile.
-4. Review `chapters/2FA.md` and `src/archive/pihole.md` later as focused topics,
-   including removal of hardcoded usernames.
-5. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or
+4. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or
    push.

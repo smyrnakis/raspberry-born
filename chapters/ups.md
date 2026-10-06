@@ -383,15 +383,43 @@ monitor adds:
 - immediate notifications for power, low-battery, shutdown and battery events
 - one-minute polling to detect missed events and communication failures
 - status updates every five minutes while the UPS remains on battery
-- a recovery summary with outage duration and battery levels
+- a recovery summary with total outage duration, battery levels and detected
+  shutdown/restart activity
 - increasing reminders while UPS communication remains unavailable
 - a voltage-trend runtime estimate when the UPS does not report
   `battery.runtime`
+- boot-bound shutdown warnings which are discarded after a restart instead of
+  arriving late and out of context
 
 The event hook stores NUT events in a protected persistent inbox. A systemd path
 unit starts the root-owned monitor, so the unprivileged `nut` account never
 needs access to SMTP credentials. Notifications use the common durable queue
 from [email.md](email.md).
+
+### Notification layout and subjects
+
+UPS subjects remain short and contain no timestamp or incident ID:
+
+```text
+[HOSTNAME] UPS | Power lost
+[HOSTNAME] UPS | On battery 5 min
+[HOSTNAME] UPS | LOW BATTERY
+[HOSTNAME] UPS | Shutdown initiated
+[HOSTNAME] UPS | Power restored after 18 min
+```
+
+On-battery and restoration subjects use elapsed whole minutes without seconds.
+The body retains exact timestamps and durations. High-priority information is
+shown first, followed by separated `CURRENT CONDITION`, `POWER`, `UPS DETAILS`
+and `NUT SERVICES` sections. The restoration message adds an `OUTAGE SUMMARY`
+containing the total duration, battery levels and shutdown/restart evidence.
+
+`Shutdown initiated` is a best-effort pre-shutdown warning. It is queued with
+the current Linux boot ID and may retry while that boot remains active. If it
+was not delivered before the Raspberry Pi shut down, the dispatcher discards
+it on the next boot. Power-loss, low-battery, restoration and communication
+messages remain durable. The restoration summary still records when shutdown
+was initiated and whether a subsequent boot was detected.
 
 ### Prepare the local configuration
 
