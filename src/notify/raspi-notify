@@ -8,12 +8,13 @@ TMP_DIR=$SPOOL_DIR/tmp
 LOCK_FILE=/run/lock/raspi-notify.lock
 
 usage() {
-    echo "Usage: $0 [--key KEY] [--event-time ISO-8601] SUBJECT" >&2
+    echo "Usage: $0 [--key KEY] [--event-time ISO-8601] [--boot-only] SUBJECT" >&2
     exit 2
 }
 
 key=""
 event_time=""
+boot_only=0
 while [[ $# -gt 1 ]]; do
     case "$1" in
         --key)
@@ -25,6 +26,10 @@ while [[ $# -gt 1 ]]; do
             [[ $# -ge 3 ]] || usage
             event_time=$2
             shift 2
+            ;;
+        --boot-only)
+            boot_only=1
+            shift
             ;;
         --)
             shift
@@ -80,6 +85,19 @@ printf '%s\n' "$now_iso" >"$staging/queued-time"
 printf '%s\n' "$now_epoch" >"$staging/queued-epoch"
 printf '0\n' >"$staging/attempts"
 printf '0\n' >"$staging/next-attempt"
+
+if (( boot_only == 1 )); then
+    if [[ ! -r /proc/sys/kernel/random/boot_id ]]; then
+        echo "Cannot determine the current Linux boot ID" >&2
+        exit 1
+    fi
+    boot_id=$(</proc/sys/kernel/random/boot_id)
+    [[ -n "$boot_id" ]] || {
+        echo "The current Linux boot ID is empty" >&2
+        exit 1
+    }
+    printf '%s\n' "$boot_id" >"$staging/origin-boot-id"
+fi
 
 if [[ -n "$key" ]]; then
     safe_key=$(printf '%s' "$key" | tr -cs 'A-Za-z0-9_.-' '_' | cut -c1-100)

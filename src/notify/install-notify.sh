@@ -51,7 +51,8 @@ require_root() {
 
 validate_config() {
     local config=$1
-    local key value
+    local key value recipient
+    local -a recipients
     local mail_from="" mail_to="" mail_from_name="" msmtp_account=""
 
     [[ -r "$config" ]] || {
@@ -76,16 +77,38 @@ validate_config() {
         echo "All notification settings must be present in $config" >&2
         return 1
     fi
-    if [[ "$mail_from" == *example.invalid || "$mail_to" == *example.invalid ]]; then
+    if [[ "$mail_from" == *example.invalid ]]; then
         echo "Replace the example addresses in $config" >&2
         return 1
     fi
-    if [[ "$mail_from" == *[[:space:]]* || "$mail_from" != *@* ||
-          "$mail_to" == *[[:space:]]* || "$mail_to" != *@* ||
+    if [[ "$mail_from" == *[[:space:]]* ||
+          ! "$mail_from" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$ ||
           ! "$msmtp_account" =~ ^[A-Za-z0-9_.-]+$ ]]; then
         echo "Invalid address or account setting in $config" >&2
         return 1
     fi
+
+    if [[ "$mail_to" == *[[:space:]]* || "$mail_to" == ,* ||
+          "$mail_to" == *, || "$mail_to" == *,,* ]]; then
+        echo "MAIL_TO must contain one or more comma-separated addresses without spaces" >&2
+        return 1
+    fi
+    IFS=',' read -r -a recipients <<<"$mail_to"
+    (( ${#recipients[@]} > 0 )) || {
+        echo "MAIL_TO does not contain a recipient" >&2
+        return 1
+    }
+    for recipient in "${recipients[@]}"; do
+        if [[ "$recipient" == *example.invalid ]]; then
+            echo "Replace the example addresses in $config" >&2
+            return 1
+        fi
+        if [[ "$recipient" == -* ||
+              ! "$recipient" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$ ]]; then
+            echo "Invalid recipient address in $config" >&2
+            return 1
+        fi
+    done
 }
 
 validate_sources() {

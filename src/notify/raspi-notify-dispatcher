@@ -46,12 +46,32 @@ for value_name in MAIL_FROM MAIL_TO MAIL_FROM_NAME MSMTP_ACCOUNT; do
         exit 1
     fi
 done
-if [[ "$MAIL_FROM" == *[[:space:]]* || "$MAIL_FROM" != *@* ||
-      "$MAIL_TO" == *[[:space:]]* || "$MAIL_TO" != *@* ||
+if [[ "$MAIL_FROM" == *[[:space:]]* ||
+      ! "$MAIL_FROM" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$ ||
       ! "$MSMTP_ACCOUNT" =~ ^[A-Za-z0-9_.-]+$ ]]; then
     log "Invalid address or account setting in $CONFIG_FILE"
     exit 1
 fi
+
+if [[ "$MAIL_TO" == *[[:space:]]* || "$MAIL_TO" == ,* ||
+      "$MAIL_TO" == *, || "$MAIL_TO" == *,,* ]]; then
+    log "MAIL_TO must contain one or more comma-separated addresses without spaces"
+    exit 1
+fi
+
+IFS=',' read -r -a MAIL_RECIPIENTS <<<"$MAIL_TO"
+if (( ${#MAIL_RECIPIENTS[@]} == 0 )); then
+    log "MAIL_TO does not contain a recipient"
+    exit 1
+fi
+for recipient in "${MAIL_RECIPIENTS[@]}"; do
+    if [[ "$recipient" == -* ||
+          ! "$recipient" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$ ]]; then
+        log "Invalid recipient address in $CONFIG_FILE"
+        exit 1
+    fi
+done
+MAIL_TO_HEADER=${MAIL_TO//,/, }
 
 duration_text() {
     local total=$1
@@ -158,6 +178,27 @@ flock -u 9
 
 [[ -n "$message_dir" ]] || exit 0
 
+# Boot-bound messages are useful only before the machine shuts down. This is
+# used for best-effort pre-shutdown warnings which must not arrive after boot.
+if [[ -f "$message_dir/origin-boot-id" ]]; then
+    origin_boot_id=$(<"$message_dir/origin-boot-id")
+    current_boot_id=""
+    if [[ -r /proc/sys/kernel/random/boot_id ]]; then
+        current_boot_id=$(</proc/sys/kernel/random/boot_id)
+    fi
+    if [[ -z "$origin_boot_id" || -z "$current_boot_id" ]]; then
+        log "Discarding boot-bound notification because its boot ID cannot be verified: $original_name"
+        rm -rf -- "$message_dir"
+        exit 0
+    fi
+    if [[ "$origin_boot_id" != "$current_boot_id" ]]; then
+        subject=$(<"$message_dir/subject")
+        log "Discarding stale boot-bound notification after reboot: $subject"
+        rm -rf -- "$message_dir"
+        exit 0
+    fi
+fi
+
 subject=$(<"$message_dir/subject")
 event_time=$(<"$message_dir/event-time")
 event_epoch=$(read_number "$message_dir/event-epoch" 0)
@@ -171,7 +212,7 @@ mail_file=$(mktemp "$TMP_DIR/.mail.XXXXXXXX")
 
 {
     printf 'From: %s <%s>\n' "$MAIL_FROM_NAME" "$MAIL_FROM"
-    printf 'To: %s\n' "$MAIL_TO"
+    printf 'To: %s\n' "$MAIL_TO_HEADER"
     printf 'Subject: %s\n' "$subject"
     printf 'Date: %s\n' "$(date -R)"
     printf 'Message-ID: <%s.%s@%s>\n' "$(date +%s%N)" "$$" "$(hostname --short)"
@@ -188,7 +229,7 @@ mail_file=$(mktemp "$TMP_DIR/.mail.XXXXXXXX")
     printf '%-22s %s\n' 'Delivery delay:' "$delay"
 } >"$mail_file"
 
-if timeout 45s msmtp --account="$MSMTP_ACCOUNT" "$MAIL_TO" <"$mail_file"; then
+if timeout 45s msmtp --account="$MSMTP_ACCOUNT" -- "${MAIL_RECIPIENTS[@]}" <"$mail_file"; then
     rm -f -- "$mail_file"
     rm -rf -- "$message_dir"
     if (( attempts > 0 )); then

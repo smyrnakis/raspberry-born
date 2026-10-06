@@ -19,7 +19,7 @@ References:
 | --- | --- |
 | `/etc/msmtprc` | SMTP server and authentication settings |
 | `/etc/msmtp-password` | Optional root-only application password |
-| `/etc/raspi-notify/notify.conf` | Local sender, recipient and display name |
+| `/etc/raspi-notify/notify.conf` | Local sender, recipients and display name |
 | `/var/spool/raspi-notify/queue/` | Messages waiting for delivery |
 | `/var/spool/raspi-notify/bad/` | Invalid messages retained for inspection |
 | `/usr/local/sbin/raspi-notify` | Command used by monitoring scripts |
@@ -121,8 +121,23 @@ cp notify.conf.example notify.conf
 vim notify.conf
 ```
 
-`notify.conf` is ignored by Git. Keep one recipient per installation and use a
-descriptive sender name such as the Raspberry Pi hostname.
+`notify.conf` is ignored by Git. Use a descriptive sender name such as the
+Raspberry Pi hostname. `MAIL_TO` accepts either one address or several
+comma-separated addresses without spaces:
+
+```ini
+MAIL_TO=first-recipient@example.invalid
+```
+
+```ini
+MAIL_TO=first-recipient@example.invalid,second-recipient@example.invalid
+```
+
+Every configured recipient receives the same message. All addresses appear in
+the email's `To:` header, so recipients can see each other's addresses. Do not
+use quotes, spaces, display names, semicolons or angle brackets in `MAIL_TO`.
+Keep actual addresses only in the ignored local `notify.conf` and the installed
+root-only configuration, never in Git.
 
 ## 5. Validate, apply and test
 
@@ -146,6 +161,8 @@ Queue a test message:
 printf 'Durable notification queue test.\n' | \
     sudo /usr/local/sbin/raspi-notify "[$(hostname --short)] Notification test"
 ```
+
+The test must arrive at every address configured in `MAIL_TO`.
 
 Then verify the delivery service and queue:
 
@@ -178,6 +195,24 @@ sudo systemctl show raspi-notify-dispatcher.service \
 
 After a successful completed run, expect `ActiveState=inactive`,
 `SubState=dead`, `Result=success` and `ExecMainStatus=0`.
+
+### Add or remove a recipient later
+
+Edit the ignored configuration beside the installer rather than placing an
+address in a tracked file:
+
+```bash
+cd ~/raspberry-born/src/notify
+vim notify.conf
+sudo ./install-notify.sh --check
+sudo ./install-notify.sh --apply
+```
+
+`--check` validates every address before changing the system. `--apply` creates
+a timestamped backup and updates `/etc/raspi-notify/notify.conf`; it does not
+restart the dispatcher or retry timer. The next dispatcher invocation reads the
+new list. Queue the test message above and confirm that every intended recipient
+receives it before relying on the change.
 
 Enable the one-minute retry timer only after the direct transport and queue
 tests pass:
@@ -220,6 +255,21 @@ printf '%s\n' "The service is still unavailable." | \
 ```
 
 Do not use a shared key for distinct critical events that must each be retained.
+
+Use `--boot-only` for a message which is useful only during the current Linux
+boot, such as a best-effort warning immediately before an automated shutdown:
+
+```bash
+printf '%s\n' "The system is shutting down now." | \
+    /usr/local/sbin/raspi-notify \
+        --boot-only \
+        "[$(hostname --short)] Shutdown initiated"
+```
+
+The queue records the current boot ID. Delivery may retry while that boot
+remains active, but the dispatcher discards the message after a reboot instead
+of sending a stale warning. Do not use this option for recovery reports or
+other historical events which must remain durable.
 
 ## Retry and recovery behavior
 

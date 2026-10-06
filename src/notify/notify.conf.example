@@ -1,6 +1,8 @@
 # Copy this file to notify.conf and replace every example value locally.
 # notify.conf is ignored by Git and is installed with mode 600.
 MAIL_FROM=sender@example.invalid
+# Use one address, or several addresses separated by commas without spaces.
+# MAIL_TO=first-recipient@example.invalid,second-recipient@example.invalid
 MAIL_TO=recipient@example.invalid
 MAIL_FROM_NAME=Raspberry Pi
 MSMTP_ACCOUNT=default

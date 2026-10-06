@@ -35,7 +35,7 @@ Audit date: 2026-09-19
 
 ## Current integration state
 
-As of 2026-09-25 after the approved VPN-watchdog commit:
+As of 2026-10-06 after the approved OpenVPN server workflow commit:
 
 - Reconciliation branch: `codex/reconcile-2026-09-19`.
 - The branch is based on `origin/main` at `2086acc` and contains the planning checkpoint plus focused reconciliation commits.
@@ -43,6 +43,8 @@ As of 2026-09-25 after the approved VPN-watchdog commit:
 - Local `main` remains unchanged at `e88de61`.
 - Nothing has been pushed.
 - The automatic-updates, boot-report and VPN-watchdog commits are complete.
+- The maintained OpenVPN server workflow and byte-preserved legacy archive are
+  committed locally as `5345789`.
 - The deferred untracked chapters remain present: `grafana.md` and `mosquitto.md`.
 - The durable notification, hardware-watchdog, UPS, automatic-updates and boot-report changes are committed locally in separate focused commits. None has been deployed.
 
@@ -916,12 +918,30 @@ Status: completed and verified.
 - Git Bash syntax validation passed for both new scripts. Markdown fences, relative paths, whitespace and sensitive-data checks remain required before approval. Native nftables and OpenVPN parsing remain Raspberry Pi pre-deployment checks.
 - Nothing was staged, committed, pushed or deployed. No Raspberry Pi was contacted.
 
+### 2026-10-06
+
+- Committed the approved OpenVPN server workflow and legacy archive locally as
+  `5345789`. Nothing was pushed or deployed, and no Raspberry Pi was contacted.
+- Extended the generic durable notification design so `MAIL_TO` can contain one or more comma-separated recipient addresses without spaces.
+- Updated both installer-time and dispatcher-time validation, separate SMTP envelope recipients, the visible `To:` header, the public configuration example and the notification documentation.
+- Tightened sender and recipient validation so the implementation now rejects
+  the quotes, display names, semicolons and angle brackets prohibited by the
+  documentation.
+- Notification Bash syntax, recipient-list rejection, boot-only argument
+  ordering and whitespace checks passed locally.
+- Kept all real recipient addresses out of Git. The change is local and uncommitted; no Raspberry Pi was contacted or changed and nothing was pushed.
 
 ## Next controlled chunk
 
-1. Review the completed command-first VPN server chapter and supporting assets; correct any usability or policy issues found.
-2. Run final static validation and prepare the OpenVPN archival/replacement scope for a focused local commit only after user approval.
-3. Keep native nftables/OpenVPN parsing and deployment verification as explicit fresh-Raspberry-Pi checks; do not claim deployment evidence from Windows validation.
-4. Decide later, per device, whether proven recovery justifies enabling either the VPN-watchdog reboot fallback or the available conditional 04:45 update reboot profile.
-5. Review `chapters/2FA.md` and `src/archive/pihole.md` later as focused topics, including removal of hardcoded usernames.
-6. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or push.
+1. Review and, after approval, commit the generic notification changes before
+   the dependent UPS presentation and outage-summary changes.
+2. Keep native nftables/OpenVPN parsing and deployment verification as explicit
+   fresh-Raspberry-Pi checks; do not claim deployment evidence from Windows
+   validation.
+3. Decide later, per device, whether proven recovery justifies enabling either
+   the VPN-watchdog reboot fallback or the available conditional 04:45 update
+   reboot profile.
+4. Review `chapters/2FA.md` and `src/archive/pihole.md` later as focused topics,
+   including removal of hardcoded usernames.
+5. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or
+   push.
