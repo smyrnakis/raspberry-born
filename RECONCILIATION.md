@@ -35,7 +35,7 @@ Audit date: 2026-09-19
 
 ## Current integration state
 
-As of 2026-10-06 after the approved notification and UPS refinement commits:
+As of 2026-10-06 after integrating the current `origin/main`:
 
 - Reconciliation branch: `codex/reconcile-2026-09-19`.
 - The branch is based on `origin/main` at `2086acc` and contains the planning checkpoint plus focused reconciliation commits.
@@ -49,9 +49,11 @@ As of 2026-10-06 after the approved notification and UPS refinement commits:
   locally as `e2eb2f1`.
 - The UPS incident-message and outage-summary refinement is committed locally
   as `046dc9f`. No generic repository update was deployed.
-- Against the current local `origin/main` reference, the branch is 15 commits
-  ahead and one commit behind. The remote-only commit is `dc51366` (`Link
-  Raspberry Pi network monitor`) and changes only `README.md`.
+- Remote commit `dc51366` (`Link Raspberry Pi network monitor`) was integrated
+  by merge commit `9af51c8`. Its README link is present alongside all approved
+  reconciliation-branch navigation additions.
+- Against the current local `origin/main` reference, the branch is 17 commits
+  ahead and zero commits behind.
 - The deferred untracked chapters remain present: `grafana.md` and `mosquitto.md`.
 - The durable notification, hardware-watchdog, UPS, automatic-updates and boot-report changes are committed locally in separate focused commits. None has been deployed.
 
@@ -950,20 +952,25 @@ Status: completed and verified.
 - Inspected remote-only commit `dc51366`. Its two-line README addition links the
   separate `raspi-network-monitor` repository and does not replace the local
   README additions, but it still requires an approved integration step.
+- Refreshed `origin`, confirmed that `dc51366` remained the only remote-only
+  commit, and integrated it with merge commit `9af51c8`.
+- Verified that the merge added only the network-monitor README entry and
+  preserved the automatic-updates, boot-report, notification, VPN-watchdog,
+  site-to-site VPN, UPS, hardware-watchdog and NASPi entries.
+- The tracked working tree was clean after the merge. Grafana and Mosquitto
+  remained untouched and untracked.
 - Kept all real recipient addresses out of Git. Nothing was pushed or deployed,
   and no Raspberry Pi was contacted or changed.
 
 ## Next controlled chunk
 
-1. Review and, after approval, integrate remote-only commit `dc51366` while
-   preserving the reconciliation branch's README additions.
-2. Review `chapters/2FA.md` and `src/archive/pihole.md` as the following focused
+1. Review `chapters/2FA.md` and `src/archive/pihole.md` as the following focused
    cleanup, including removal of hardcoded usernames.
-3. Keep native nftables/OpenVPN parsing and deployment verification as explicit
+2. Keep native nftables/OpenVPN parsing and deployment verification as explicit
    fresh-Raspberry-Pi checks; do not claim deployment evidence from Windows
    validation.
-4. Decide later, per device, whether proven recovery justifies enabling either
+3. Decide later, per device, whether proven recovery justifies enabling either
    the VPN-watchdog reboot fallback or the available conditional 04:45 update
    reboot profile.
-5. Keep Grafana and Mosquitto deferred; do not update local `main`, deploy or
-   push.
+4. Keep Grafana and Mosquitto deferred for clean rebuilds; do not update local
+   `main`, deploy or push.
