@@ -52,7 +52,7 @@ As of 2026-10-06 after integrating the current `origin/main`:
 - Remote commit `dc51366` (`Link Raspberry Pi network monitor`) was integrated
   by merge commit `9af51c8`. Its README link is present alongside all approved
   reconciliation-branch navigation additions.
-- Against the current local `origin/main` reference, the branch is 17 commits
+- Against the current local `origin/main` reference, the branch is 18 commits
   ahead and zero commits behind.
 - The deferred untracked chapters remain present: `grafana.md` and `mosquitto.md`.
 - The durable notification, hardware-watchdog, UPS, automatic-updates and boot-report changes are committed locally in separate focused commits. None has been deployed.
@@ -79,6 +79,12 @@ As of 2026-10-06 after integrating the current `origin/main`:
 - The durable queued email design should become the general notification mechanism for all Raspberry Pis. Older direct-msmtp scripts and instructions will be migrated gradually.
 - Raspi4-01 and Raspi4-02 will be inspected read-only later when access details are supplied.
 - Replace the remaining hardcoded home-directory username references in `chapters/2FA.md` and `src/archive/pihole.md` with generic placeholders during their later focused reviews. Do not expand the current VPN-watchdog commit to include them.
+- SSH authentication should allow either a valid SSH key by itself or the
+  account password followed by TOTP. Password-only access must not be allowed,
+  and SSH-key access must not request TOTP.
+- Omit the obsolete Pi-hole `TO BE FIXED` external updater section. Retain the
+  generic `/etc/hosts` mapping example and rebuild the optional Pi-hole LED
+  integration with a current GPIO interface and managed service.
 - Repository work continues in the current Codex task. The separately created reconciliation task remains unused unless explicitly resumed.
 
 ## Source hierarchy
@@ -962,15 +968,46 @@ Status: completed and verified.
 - Kept all real recipient addresses out of Git. Nothing was pushed or deployed,
   and no Raspberry Pi was contacted or changed.
 
+### 2026-10-07
+
+- Reviewed the existing 2FA and Pi-hole chapters against current official
+  OpenSSH, Debian, Google Authenticator PAM and Pi-hole documentation.
+- User clarified that SSH keys must remain a complete login method without a
+  TOTP prompt, while password access must require both the account password and
+  TOTP.
+- Rebuilt `chapters/2FA.md` around the two explicit OpenSSH alternatives
+  `publickey` and `keyboard-interactive:pam`, retaining Debian password checking
+  inside PAM and disabling the separate password-only SSH method.
+- Added read-only inspection, time-synchronization checks, per-user enrolment,
+  configuration backup, syntax and effective-value validation, second-session
+  tests, expected results, recovery and rollback.
+- Updated the README description. Nothing was committed, pushed or deployed,
+  and no Raspberry Pi was contacted or changed.
+
+### 2026-10-08
+
+- User approved the rebuilt 2FA chapter for commit and publication on the
+  reconciliation branch.
+- User approved omitting the obsolete Pi-hole external-updater placeholder,
+  retaining the generic `/etc/hosts` example and retaining the optional LED
+  idea through a modern implementation.
+- Refreshed remote metadata before the approved publication step. The branch
+  remained 18 commits ahead and zero behind `origin/main`; no remote branch
+  named `codex/reconcile-2026-09-19` existed.
+
 ## Next controlled chunk
 
-1. Review `chapters/2FA.md` and `src/archive/pihole.md` as the following focused
-   cleanup, including removal of hardcoded usernames.
-2. Keep native nftables/OpenVPN parsing and deployment verification as explicit
+1. Commit the approved 2FA scope and publish the reconciliation branch without
+   merging it into `main`.
+2. Rebuild the active Pi-hole chapter for Pi-hole v6, retain and modernize its
+   optional LED feature, preserve the useful local-host mapping instructions,
+   support both LAN and VPN clients, keep the documented allowlist reasons and
+   sanitize the archived hardcoded username.
+3. Keep native nftables/OpenVPN parsing and deployment verification as explicit
    fresh-Raspberry-Pi checks; do not claim deployment evidence from Windows
    validation.
-3. Decide later, per device, whether proven recovery justifies enabling either
+4. Decide later, per device, whether proven recovery justifies enabling either
    the VPN-watchdog reboot fallback or the available conditional 04:45 update
    reboot profile.
-4. Keep Grafana and Mosquitto deferred for clean rebuilds; do not update local
+5. Keep Grafana and Mosquitto deferred for clean rebuilds; do not update local
    `main`, deploy or push.

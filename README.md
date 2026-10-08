@@ -65,7 +65,7 @@ Steps to follow for a fresh *raspbian* installation. Includes instructions for c
 
 [Thingspeak monitoring system](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/thingSpeak.md) - monitor Raspi's CPU temp & load averages *and* ambient temperature & humidity (using *DHT11* sensor & [*Thingspeak*](https://thingspeak.com/) platform)
 
-[Two-factor authentication](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/2FA.md) - require 2FA for SSH log in with password
+[Two-factor authentication](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/2FA.md) - allow SSH keys alone or require an account password plus TOTP
 
 [Uncomplicated FireWall - UFW](https://github.com/smyrnakis/raspberry-born/blob/main/chapters/harden.md#uncomplicated-firewall-ufw) - install & configure UFW
 
