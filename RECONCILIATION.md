@@ -54,7 +54,12 @@ As of 2026-10-08 after publishing the reconciliation branch:
   by merge commit `9af51c8`. Its README link is present alongside all approved
   reconciliation-branch navigation additions.
 - The rebuilt SSH password-and-TOTP guide is committed as `29136ad`.
-- Against the current local `origin/main` reference, the branch is 19 commits
+- The approved Pi-hole v6 guide, optional GPIO LED service, archived legacy
+  guide marker and deferred Raspberry Pi Zero 2 W redundancy design are
+  committed as `96ae502`. The commit removes the copied legacy installer and
+  blocklist-updater ZIP and repairs the OpenVPN chapter's Pi-hole link. No
+  Raspberry Pi was changed.
+- Against the current local `origin/main` reference, the branch is 21 commits
   ahead and zero commits behind.
 - The deferred untracked chapters remain present: `grafana.md` and `mosquitto.md`.
 - The durable notification, hardware-watchdog, UPS, automatic-updates and boot-report changes are committed locally in separate focused commits. None has been deployed.
@@ -87,6 +92,17 @@ As of 2026-10-08 after publishing the reconciliation branch:
 - Omit the obsolete Pi-hole `TO BE FIXED` external updater section. Retain the
   generic `/etc/hosts` mapping example and rebuild the optional Pi-hole LED
   integration with a current GPIO interface and managed service.
+- Keep Pi-hole in `LOCAL` listening mode for directly connected trusted LAN and
+  OpenVPN subnets. Do not use `ALL` or advertise a public secondary resolver,
+  because either choice can bypass the intended filtering boundary.
+- Preserve the three recorded threat, cryptocurrency-mining and phishing
+  blocklists, but add them individually and rely on Pi-hole's weekly gravity
+  refresh rather than a third-party updater.
+- `chapters/pihole-redundancy.md` records a future active-active Raspberry Pi
+  Zero 2 W design with restricted SSH, 2FA, unattended security updates,
+  durable notifications and symmetric peer monitoring. It is a deferred design
+  note only. Do not implement it or add monitoring assets until the discussion
+  is explicitly resumed.
 - Repository work continues in the current Codex task. The separately created reconciliation task remains unused unless explicitly resumed.
 
 ## Source hierarchy
@@ -1002,13 +1018,20 @@ Status: completed and verified.
   branch to track it. Remote `main` was not changed.
 - The local branch and its remote tracking branch matched after publication.
   Grafana and Mosquitto remained untracked and were not published.
+- User approved the rebuilt Pi-hole chapter, including its current resolver and
+  firewall clarifications.
+- Added `chapters/pihole-redundancy.md` as a deferred design note and linked it
+  from the active Pi-hole guide. No redundancy implementation or deployment
+  was started.
+- Completed the staged scope, whitespace and sensitive-content review, then
+  committed the approved Pi-hole work as `96ae502` (`Modernize Pi-hole setup
+  and archive legacy assets`). Grafana and Mosquitto were excluded.
 
 ## Next controlled chunk
 
-1. Rebuild the active Pi-hole chapter for Pi-hole v6, retain and modernize its
-   optional LED feature, preserve the useful local-host mapping instructions,
-   support both LAN and VPN clients, keep the documented allowlist reasons and
-   sanitize the archived hardcoded username.
+1. Review the remaining copied third-party archives and backup scripts. Decide
+   individually whether each should be retrieved from upstream, archived,
+   replaced, or removed. Do not modify them during the audit.
 2. Keep native nftables/OpenVPN parsing and deployment verification as explicit
    fresh-Raspberry-Pi checks; do not claim deployment evidence from Windows
    validation.
