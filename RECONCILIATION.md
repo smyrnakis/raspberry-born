@@ -35,13 +35,14 @@ Audit date: 2026-09-19
 
 ## Current integration state
 
-As of 2026-10-06 after integrating the current `origin/main`:
+As of 2026-10-08 after publishing the reconciliation branch:
 
 - Reconciliation branch: `codex/reconcile-2026-09-19`.
 - The branch is based on `origin/main` at `2086acc` and contains the planning checkpoint plus focused reconciliation commits.
 - The three reviewed remote commits are now present in the branch history.
 - Local `main` remains unchanged at `e88de61`.
-- Nothing has been pushed.
+- The reconciliation branch is published as
+  `origin/codex/reconcile-2026-09-19`. Remote `main` remains unchanged.
 - The automatic-updates, boot-report and VPN-watchdog commits are complete.
 - The maintained OpenVPN server workflow and byte-preserved legacy archive are
   committed locally as `5345789`.
@@ -52,7 +53,8 @@ As of 2026-10-06 after integrating the current `origin/main`:
 - Remote commit `dc51366` (`Link Raspberry Pi network monitor`) was integrated
   by merge commit `9af51c8`. Its README link is present alongside all approved
   reconciliation-branch navigation additions.
-- Against the current local `origin/main` reference, the branch is 18 commits
+- The rebuilt SSH password-and-TOTP guide is committed as `29136ad`.
+- Against the current local `origin/main` reference, the branch is 19 commits
   ahead and zero commits behind.
 - The deferred untracked chapters remain present: `grafana.md` and `mosquitto.md`.
 - The durable notification, hardware-watchdog, UPS, automatic-updates and boot-report changes are committed locally in separate focused commits. None has been deployed.
@@ -994,20 +996,24 @@ Status: completed and verified.
 - Refreshed remote metadata before the approved publication step. The branch
   remained 18 commits ahead and zero behind `origin/main`; no remote branch
   named `codex/reconcile-2026-09-19` existed.
+- Committed the approved SSH password-and-TOTP guide, README description and
+  ledger decisions as `29136ad` (`Modernize SSH password and TOTP guide`).
+- Published `codex/reconcile-2026-09-19` to GitHub and configured the local
+  branch to track it. Remote `main` was not changed.
+- The local branch and its remote tracking branch matched after publication.
+  Grafana and Mosquitto remained untracked and were not published.
 
 ## Next controlled chunk
 
-1. Commit the approved 2FA scope and publish the reconciliation branch without
-   merging it into `main`.
-2. Rebuild the active Pi-hole chapter for Pi-hole v6, retain and modernize its
+1. Rebuild the active Pi-hole chapter for Pi-hole v6, retain and modernize its
    optional LED feature, preserve the useful local-host mapping instructions,
    support both LAN and VPN clients, keep the documented allowlist reasons and
    sanitize the archived hardcoded username.
-3. Keep native nftables/OpenVPN parsing and deployment verification as explicit
+2. Keep native nftables/OpenVPN parsing and deployment verification as explicit
    fresh-Raspberry-Pi checks; do not claim deployment evidence from Windows
    validation.
-4. Decide later, per device, whether proven recovery justifies enabling either
+3. Decide later, per device, whether proven recovery justifies enabling either
    the VPN-watchdog reboot fallback or the available conditional 04:45 update
    reboot profile.
-5. Keep Grafana and Mosquitto deferred for clean rebuilds; do not update local
+4. Keep Grafana and Mosquitto deferred for clean rebuilds; do not update local
    `main`, deploy or push.
