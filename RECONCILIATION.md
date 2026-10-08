@@ -59,7 +59,7 @@ As of 2026-10-08 after publishing the reconciliation branch:
   committed as `96ae502`. The commit removes the copied legacy installer and
   blocklist-updater ZIP and repairs the OpenVPN chapter's Pi-hole link. No
   Raspberry Pi was changed.
-- Against the current local `origin/main` reference, the branch is 21 commits
+- Against the current local `origin/main` reference, the branch is 23 commits
   ahead and zero commits behind.
 - The deferred untracked chapters remain present: `grafana.md` and `mosquitto.md`.
 - The durable notification, hardware-watchdog, UPS, automatic-updates and boot-report changes are committed locally in separate focused commits. None has been deployed.
@@ -412,26 +412,54 @@ Status: pending investigation. The private conversation URLs are intentionally n
 
 ## Tracked artifact review
 
-Pending review:
+Status: review and approved cleanup completed on 2026-10-08. The external
+repository backup and Git history provide recovery points.
 
-- `src/noip-duc-linux.tar.gz`
-- `src/ya-pihole-list-master.zip`
-- `src/zsh-autosuggestions-master.zip`
-- `src/zsh-syntax-highlighting-master.zip`
-- `src/pihole-basic-install.sh`
-- `src/vpn/openvpn-install.sh`
-- `src/fan.bkp.py`
-- `src/fan-pi.bkp.py`
+- `src/noip-duc-linux.tar.gz` is the obsolete No-IP DUC 2.1.9-1 source bundle
+  with copied x86 binaries, old init guidance and Apple metadata. No active
+  repository document uses this copy. The approved cleanup removed it.
+  Modernize `chapters/dynamic-dns.md` separately around Debian `ddclient` or
+  the current No-IP DUC 3 package, without storing a live DDNS name or
+  credentials.
+- `src/zsh-autosuggestions-master.zip` is an unreferenced upstream 0.6.4
+  snapshot. The approved cleanup removed it; Debian packages or a reviewed
+  upstream checkout are reproducible alternatives.
+- `src/zsh-syntax-highlighting-master.zip` is an unreferenced upstream
+  0.8.0-alpha2 development snapshot. The approved cleanup removed it for the
+  same reason.
+- `src/fan.bkp.py` and `src/fan-pi.bkp.py` are unreferenced predecessors of
+  the active fan scripts. Git history preserves their logic, so the approved
+  cleanup removed both. Review the active scripts and `chapters/x-c1.md`
+  separately; do not infer Raspberry Pi validation from this artifact review.
+- The former `src/vpn/openvpn-install.sh` is already preserved deliberately as
+  `archive/openvpn/automated/openvpn-install.sh`. Keep the archived copy as
+  historical context; the maintained workflow is `chapters/vpn.md` with
+  `src/vpn/server/`.
+- `src/ya-pihole-list-master.zip` and `src/pihole-basic-install.sh` were removed
+  by approved Pi-hole commit `96ae502`; their useful concepts were replaced by
+  maintained instructions and repository assets.
 
-Questions for each artifact:
+### Branch-wide audit after Pi-hole publication
 
-- Is it still used by a documented workflow?
-- Can it be retrieved reliably from an authoritative upstream source instead?
-- Is its version and license recorded?
-- Does keeping a stale copy create a security or maintenance risk?
-- Is a backup file preserving unique logic, or is Git history sufficient?
+Status: read-only audit completed on 2026-10-08.
 
-No artifact should be deleted before backup and individual review.
+- Local `codex/reconcile-2026-09-19` and its remote tracking branch match.
+- The branch is 22 commits ahead and zero behind `origin/main`; remote `main`
+  remains at `dc51366` and was not changed.
+- At the start of the audit, the only working-tree files outside Git were the
+  deliberately deferred
+  `chapters/grafana.md` and `chapters/mosquitto.md` drafts. There are no staged,
+  modified tracked or ignored files, and no tracked file is hidden by ignore
+  rules.
+- The tracked-tree scan found no MAC addresses, private-key headers, `.ovpn`
+  profiles or obvious live credentials. Email addresses are example-invalid
+  values except for an obsolete email-shaped placeholder in
+  `chapters/dynamic-dns.md`; replace that placeholder during the chapter's
+  focused modernization.
+- All tracked relative Markdown links resolve locally. Archived documents may
+  still contain intentionally superseded absolute GitHub links and commands;
+  their archive banner, not their content, is authoritative.
+- `git diff --check` passed. No Raspberry Pi was contacted or changed.
 
 ## Documentation modernization backlog
 
@@ -1026,12 +1054,25 @@ Status: completed and verified.
 - Completed the staged scope, whitespace and sensitive-content review, then
   committed the approved Pi-hole work as `96ae502` (`Modernize Pi-hole setup
   and archive legacy assets`). Grafana and Mosquitto were excluded.
+- Committed the associated ledger checkpoint as `daf5668` and published both
+  commits to `origin/codex/reconcile-2026-09-19`. Local and remote
+  reconciliation branches matched after publication; remote `main` was not
+  changed.
+- Completed the read-only review of the remaining copied upstream archives,
+  backup fan scripts and already archived OpenVPN installer. Recorded
+  individual keep or remove recommendations without deleting an artifact.
+- Completed a branch-wide status, divergence, tracked-content privacy,
+  ignored-file, relative-link and whitespace audit. No Raspberry Pi was
+  contacted or changed.
+- User approved the artifact recommendations. Removed the obsolete No-IP and
+  Zsh upstream archives plus the two unreferenced backup fan scripts. Kept the
+  deliberately archived OpenVPN installer. Git history and the verified
+  external backup retain recoverable copies.
 
 ## Next controlled chunk
 
-1. Review the remaining copied third-party archives and backup scripts. Decide
-   individually whether each should be retrieved from upstream, archived,
-   replaced, or removed. Do not modify them during the audit.
+1. Review and modernize `chapters/dynamic-dns.md` as a focused change. Keep
+   `chapters/zsh.md` and the X-C1 fan implementation as later separate reviews.
 2. Keep native nftables/OpenVPN parsing and deployment verification as explicit
    fresh-Raspberry-Pi checks; do not claim deployment evidence from Windows
    validation.
