@@ -1,0 +1,7 @@
+# BCM GPIO numbers.
+ANSWERED_GPIO=20
+BLOCKED_GPIO=21
+
+# Pi-hole DNS query log and LED on-time in seconds.
+PIHOLE_LOG=/var/log/pihole/pihole.log
+BLINK_SECONDS=0.08

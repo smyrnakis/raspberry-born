@@ -187,7 +187,7 @@ push "dhcp-option DNS 1.1.1.1"
 push "dhcp-option DNS 1.0.0.1"
 ```
 
-The second public resolver provides redundancy. VPN clients may use either resolver, so do not combine Pi-hole with a public resolver when filtering is required. See [Pi-hole advertisement blocker](pihole.md#openvpn-configuration) for the Pi-hole-side setting.
+The second public resolver provides redundancy. VPN clients may use either resolver, so do not combine Pi-hole with a public resolver when filtering is required. See [Pi-hole advertisement blocker](pihole.md#5-openvpn-clients) for the Pi-hole-side setting.
 
 If Pi-hole is installed later, update the OpenVPN server configuration at that time. Profiles do not need to be regenerated because DNS settings are pushed by the server:
 

@@ -5,3 +5,4 @@ src/ups/* text eol=lf
 src/maintenance/updates/* text eol=lf
 src/monitoring/boot-report/* text eol=lf
 src/monitoring/vpn-watchdog/* text eol=lf
+src/pihole/leds/* text eol=lf

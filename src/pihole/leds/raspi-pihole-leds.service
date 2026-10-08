@@ -1,0 +1,17 @@
+[Unit]
+Description=Pi-hole DNS query activity LEDs
+After=pihole-FTL.service
+Wants=pihole-FTL.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/raspi-pihole-leds
+ExecStart=/usr/local/sbin/raspi-pihole-leds
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

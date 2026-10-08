@@ -1,5 +1,9 @@
 # Pi-hole advertisement blocker & DNSCrypt
 
+> **Archived:** This is an obsolete Pi-hole v5-era procedure retained only for
+> historical reference. Do not use it for a new installation. Follow
+> [`chapters/pihole.md`](../../chapters/pihole.md) instead.
+
 *Article 1: https://www.itchy.nl/raspberry-pi-4-with-openvpn-pihole-dnscrypt/*
 
 *Article 2: https://docs.pi-hole.net/*
@@ -25,7 +29,7 @@ sudo cp example-dnscrypt-proxy.toml dnscrypt-proxy.toml
 
 ### Configure & enable DNSCrypt
 ``` bash
-sudo nano /opt/dnscrypt-proxy/dnscrypt-proxy.toml
+sudo vim /opt/dnscrypt-proxy/dnscrypt-proxy.toml
 ```
 
 Change the following settings:
@@ -142,8 +146,8 @@ cd ya-pihole-list
 Edit the following in the `adlists-updater.sh` :
 ``` bash
 # replace username / fix the paths in lines 12 & 13
-adListFile="/home/{YOUR-USERNAME}/Software/ya-pihole-list/adlists.list.updater"
-tmpFile="/home/{YOUR-USERNAME}/Software/ya-pihole-list/adlists.list.updater.tmp"
+adListFile="/home/{USERNAME}/Software/ya-pihole-list/adlists.list.updater"
+tmpFile="/home/{USERNAME}/Software/ya-pihole-list/adlists.list.updater.tmp"
 
 # line 38
 apt-get update -y && apt-get upgrade -y
@@ -162,7 +166,7 @@ sudo crontab -e
 
 Add the following line, replacing the path as above:
 ``` bash
-15 2 * * * sudo /home/tolis/Software/ya-pihole-list/adlists-updater.sh 1 >/dev/null
+15 2 * * * sudo /home/{USERNAME}/Software/ya-pihole-list/adlists-updater.sh 1 >/dev/null
 ```
 
 ### Clean up
@@ -294,7 +298,7 @@ sudo crontab -e
 
 and add the line:
 ``` bash
-@reboot bash /home/{YOUR-USERNAME}/Software/Hardware/pihole/pihole-LEDs.sh
+@reboot bash /home/{USERNAME}/Software/Hardware/pihole/pihole-LEDs.sh
 ```
 
 <br>

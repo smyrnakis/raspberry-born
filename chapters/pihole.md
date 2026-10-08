@@ -1,225 +1,238 @@
-# Pi-hole advertisement blocker
+# Pi-hole
 
-> This guide assumes that *OpenVPN* is installed on the system. If you are not using OpenVPN, you can just follow the default settings during the installation.
+This guide installs Pi-hole v6 on a Raspberry Pi and makes it available to
+trusted local-network and OpenVPN clients. It uses Pi-hole's normal weekly
+gravity update instead of an additional blocklist updater.
 
-<br>
+## 1. Before installation
 
-*Article 1: https://docs.pi-hole.net/guides/vpn/installation/*
+Use a supported Raspberry Pi OS or Debian release. Give the Raspberry Pi a
+stable address, preferably with a DHCP reservation on the router.
 
-*Article 2: https://docs.pi-hole.net/*
+Run these read-only checks on the Raspberry Pi:
 
-*Article 3: https://github.com/JavanXD/ya-pihole-list*
-
-<br>
-
-## Preparation
-
-### Configure UFW
-``` bash
-sudo ufw allow 80/tcp
-sudo ufw allow 53/tcp comment 'pihole'
-sudo ufw allow 53/udp comment 'pihole'
-sudo ufw allow 67/tcp comment 'pihole'
-sudo ufw allow 67/udp comment 'pihole'
-sudo ufw allow 546:547/udp comment 'pihole'   # if using IPv6
-```
-
-### Static IP
-The Raspberry Pi needs to have a *static IP* for the pihole to function correctly.
-Make sure that you configure your router's DHCP settings or that you select a static IP in the Raspberry Pi's settings.
-
-<br>
-
-## Install Pi-hole
-
-Script needs to run with elevated privileges:
-``` bash
-sudo su
-```
-
-``` bash
-curl -sSL https://install.pi-hole.net | bash
-```
-
-### Configuration during installation
-``` bash
-# Static IP Needed
-Continue
-
-# Choose yes to indicate that you have understood this message, and wish to continue
-yes
-
-# interface (in order to be able to work with OpenVPN. If not using OpenVPN, select 'eth0')
-tun0
-
-# IP protocols (if you use IP v6)
-both
-
-# Static IP Address
-Skip
-
-# Choose an upstream DNS provider
-OpenDNS
-
-# block lists
-all offered
-
-# Do you wish to install the web admin interface?
-Yes
-
-# Do you wish to install the web server (lighttpd) and required PHP modules?
-Yes
-
-# Do you want to log queries?
-Yes
-
-# Select a privacy mode for FTL.
-0 Show everything
-
-# !!! IMPORTANT !!!
-# KEEP A NOTE OF THE ADMIN PASSWORD
-```
-
-Exit the elevated terminal:
 ```bash
-exit
+cat /etc/os-release
+ip -brief address
+ip route
+sudo ss -lntup
+command -v pihole || true
+systemctl list-unit-files 'pihole*' --no-pager
+sudo ufw status verbose 2>/dev/null || true
+sudo nft list ruleset 2>/dev/null || true
 ```
 
-### Set admin password
+Expected results:
 
-Choose your own password:
-``` bash
-sudo pihole -a -p
+- `cat /etc/os-release` identifies a currently supported Raspberry Pi OS or
+  Debian release.
+- `ip -brief address` shows the LAN interface and its stable address. Use this
+  interface during installation, not `tun0`.
+- `ip route` shows a default route through the LAN router.
+- `ss` shows whether another service already owns DNS port 53 or web ports 80
+  and 443. Resolve unexpected conflicts before continuing.
+- `command -v pihole` and the systemd listing reveal an existing installation.
+- The final two commands show the current firewall implementation. Extend the
+  existing firewall instead of installing a second firewall manager.
+
+## 2. Download and run the installer
+
+```bash
+sudo apt update
+sudo apt install wget
+
+install -d -m 700 ~/Software/Pi-hole-installer
+cd ~/Software/Pi-hole-installer
+wget -O basic-install.sh https://install.pi-hole.net
+sudo bash basic-install.sh
 ```
 
-### Configure [DNSSEC](https://www.icann.org/resources/pages/dnssec-what-is-it-why-important-2019-03-05-en)
-```
-# Access admin panel at {RASPBERRY-PI-IP}/admin
-# e.g: 192.168.1.100/admin
+This uses the manual-download method documented by Pi-hole. The installer is
+saved locally before it is run instead of being piped directly into Bash.
 
-# Settings --> DNS --> Advanced DNS settings
-Check "Use DNSSEC"
-```
+Choose an upstream resolver during installation:
 
-### Configure interfaces safely
+| Provider | IPv4 addresses | IPv6 addresses | Advantages | Trade-offs |
+| --- | --- | --- | --- | --- |
+| Cloudflare | `1.1.1.1`, `1.0.0.1` | `2606:4700:4700::1111`, `2606:4700:4700::1001` | Fast, privacy-focused, no filtering in the standard service. | Operated by a large commercial network. |
+| Quad9 | `9.9.9.9`, `149.112.112.112` | `2620:fe::fe`, `2620:fe::9` | Privacy-focused and blocks known malicious domains. | A false positive can be blocked upstream rather than appearing as a Pi-hole block. |
+| Google | `8.8.8.8`, `8.8.4.4` | `2001:4860:4860::8888`, `2001:4860:4860::8844` | Large global network and high availability. | Keeps temporary client-IP logs and longer-lived anonymized aggregate data. |
 
-In the Pi-hole admin panel, open **Settings > DNS > Interface settings** and keep **Allow only local requests** unless the network design requires something broader.
+Cloudflare is a simple neutral default. Quad9 is a good alternative when an
+additional malware-filtering layer is preferred. Ordinary port 53 DNS between
+Pi-hole and these resolvers is not encrypted. A separate design is needed to
+use recursive Unbound instead of a public resolver, or to forward through
+DNS-over-TLS or DNS-over-HTTPS.
 
-This mode accepts DNS queries from subnets that Pi-hole recognizes as locally connected. When Pi-hole and OpenVPN run on the same Raspberry Pi, the OpenVPN tunnel subnet should be locally connected through the tunnel interface.
+During installation:
 
-`Permit all origins` makes Pi-hole answer DNS requests arriving on any interface and from non-local source networks. It does not disable filtering or open a firewall port by itself, but it removes Pi-hole's source-network safeguard. If TCP or UDP port 53 is exposed by a firewall or router, the Raspberry Pi could become a public DNS resolver.
+- Select the normal LAN interface, usually `eth0` or `wlan0`.
+- Confirm the reserved LAN address and gateway.
+- Select the chosen upstream resolver. This can be changed later.
+- Install the web interface.
+- Keep query logging enabled if you want troubleshooting and the optional LED
+  activity feature later in this guide.
+- Choose the privacy level appropriate for the installation.
 
-Do not enable `Permit all origins` merely to make OpenVPN work. If an unusual routed VPN design requires it, restrict port 53 in the firewall to the intended LAN and VPN ranges and verify that it is unreachable through the public interface.
+Set or change the web-interface password interactively:
 
-## OpenVPN configuration
-
-Follow the [OpenVPN server guide](vpn.md#pi-hole-dns-filtering) to push Pi-hole as the only DNS resolver for VPN clients.
-
-For the normal same-host design:
-
-1. Keep Pi-hole on **Allow only local requests**.
-2. Push the VPN-side Pi-hole address, normally `10.8.0.1`, to OpenVPN clients.
-3. Allow TCP and UDP port 53 from the VPN subnet in the Raspberry Pi firewall.
-4. Do not push a public fallback DNS server when guaranteed Pi-hole filtering is required.
-5. Connect a VPN client, perform a DNS lookup and confirm that the request appears in Pi-hole's query log.
-
-If OpenVPN was configured before Pi-hole was installed, return to the [OpenVPN DNS section](vpn.md#pi-hole-dns-filtering), replace the public resolvers with the Pi-hole address, restart the OpenVPN server and reconnect the clients. Client profiles do not need to be regenerated.
-
-Client-side encrypted DNS can bypass the resolver supplied by OpenVPN. Check Android Private DNS, browser DNS-over-HTTPS and applications with built-in DNS if a connected device does not appear in Pi-hole.
-
-<br>
-
-## Add more domains in the Blocklist
-
-You can find many interesting blocklists here: [https://avoidthehack.com/best-pihole-blocklists](https://avoidthehack.com/best-pihole-blocklists) .
-
-From those lists, I chose:
-* https://osint.digitalside.it/Threat-Intel/lists/latestdomains.txt
-* https://v.firebog.net/hosts/Prigent-Crypto.txt
-* https://v.firebog.net/hosts/RPiList-Phishing.txt
-
-In order to add the lists:
-1. Navigate to your Pi-hole's admin panel and click on **Adlists** in the menu.
-2. In the *Address:* field, add the above URLs
-    - you can add all URLs at once, separated by space
-    - add them individually if you want to include a different *comment* for every list
-3. Click on the **Add** button
-4. Click on the **online** link just bellow to update the Gravity DB
-
-<br>
-
-<details>
-<summary>ya-pihole-list</summary>
-
-> UPDATE 2023/03/16
-> I did not use this tool now. Check the previous method, just above.
-
-``` bash
-cd ~/Software
-git clone --depth=1 https://github.com/JavanXD/ya-pihole-list.git ya-pihole-list
-cd ya-pihole-list
+```bash
+sudo pihole setpassword
 ```
 
-Edit the following in the `adlists-updater.sh` :
-``` bash
-# replace username / fix the paths in lines 18 & 19
-adListFile="$HOME/Software/ya-pihole-list/adlists.list.updater"
-tmpFile="$HOME/Software/ya-pihole-list/adlists.list.updater.tmp"
+Do not place the password on the command line or in Git.
 
-# line 39
-apt-get update && apt-get upgrade -y
+## 3. Restrict DNS to trusted networks
+
+Keep Pi-hole in `LOCAL` listening mode:
+
+```bash
+sudo pihole-FTL --config dns.listeningMode "LOCAL"
+sudo pihole reloaddns
 ```
 
-Make the script executable and run it:
-``` bash
-sudo chmod a+x adlists-updater.sh
-sudo bash adlists-updater.sh 1
+`LOCAL` accepts requests that arrive from networks directly connected to the
+Raspberry Pi. This covers its LAN and, when OpenVPN runs on the same Raspberry
+Pi, the directly connected VPN subnet.
+
+Do not use `ALL` or **Permit all origins** for this setup. That mode accepts
+requests regardless of their origin and can expose an open DNS resolver if the
+firewall or router is misconfigured.
+
+### Firewall
+
+First check whether UFW is active:
+
+```bash
+sudo ufw status verbose
 ```
 
-### Schedule automatic gravity update every day at 05:15
-``` bash
-sudo crontab -e
+If it reports `Status: active` and `Default: deny (incoming)`, add scoped allow
+rules for Pi-hole. The commands below do not block ports 80 or 443. They permit
+DNS and web administration only from the listed trusted networks because the
+default incoming policy blocks other sources.
+
+These examples use LAN `192.168.1.0/24` and OpenVPN `10.8.0.0/24`. Replace the
+LAN range with the actual local network:
+
+```bash
+sudo ufw allow from 192.168.1.0/24 to any port 53 proto udp comment 'Pi-hole LAN DNS'
+sudo ufw allow from 192.168.1.0/24 to any port 53 proto tcp comment 'Pi-hole LAN DNS'
+sudo ufw allow from 10.8.0.0/24 to any port 53 proto udp comment 'Pi-hole VPN DNS'
+sudo ufw allow from 10.8.0.0/24 to any port 53 proto tcp comment 'Pi-hole VPN DNS'
+
+sudo ufw allow from 192.168.1.0/24 to any port 80 proto tcp comment 'Pi-hole LAN web'
+sudo ufw allow from 192.168.1.0/24 to any port 443 proto tcp comment 'Pi-hole LAN web'
+sudo ufw allow from 10.8.0.0/24 to any port 80 proto tcp comment 'Pi-hole VPN web'
+sudo ufw allow from 10.8.0.0/24 to any port 443 proto tcp comment 'Pi-hole VPN web'
 ```
 
-Add the following line, replacing the path as above:
-``` bash
-15 5 * * * sudo /home/{YOUR-USERNAME}/Software/ya-pihole-list/adlists-updater.sh 1 >/dev/null
+Omit the two VPN web rules if the administration page should be reachable only
+from the LAN. Do not open DHCP ports unless Pi-hole will provide DHCP.
+
+If UFW reports `Status: inactive`, these UFW rules are not the active firewall.
+Do not enable UFW during a remote session without first preserving SSH access.
+If nftables or another firewall already owns the ruleset, add equivalent scoped
+rules there instead. Do not operate two independent firewall managers. If no
+host firewall is active, do not add router port-forwards for Pi-hole; configure
+the host firewall later from a session with a tested recovery path.
+
+Review the effective listeners and firewall after making the changes:
+
+```bash
+sudo ss -lntup | grep -E ':(53|80|443|8080|8443)\b'
+sudo ufw status verbose 2>/dev/null || true
+sudo nft list ruleset 2>/dev/null || true
 ```
 
-</details>
+Expected results:
 
-<br>
+- `ss` shows `pihole-FTL` listening on TCP and UDP port 53. It normally shows
+  the Pi-hole web server on TCP 80 and 443; if those ports were already in use,
+  Pi-hole may use 8080 and 8443 instead.
+- `ufw status verbose` shows the scoped DNS rules and the selected web rules
+  when UFW is active. Its default incoming policy should be `deny`. Confirm
+  that an SSH rule still permits administration before ending the session.
+- `nft list ruleset` shows the effective kernel rules, including UFW-generated
+  rules when UFW is active. The trusted LAN and VPN ranges should be allowed to
+  the intended ports, with no router port-forward exposing them to the WAN.
 
-## Auto update blocklists
+A wildcard listener such as `0.0.0.0:53` in `ss` does not by itself mean the
+service is Internet-accessible. Pi-hole's `LOCAL` mode, the host firewall, and
+the absence of a router port-forward form the access boundary.
 
-> TO BE FIXED
-> Check: https://github.com/jacklul/pihole-updatelists
+## 4. Configure clients to use Pi-hole
 
-<br>
+Configure the router's DHCP service to advertise the Raspberry Pi's stable
+IPv4 address as DNS. If IPv6 is enabled, configure the IPv6 DNS advertisement
+as well.
 
-## Debugging
+Do not advertise a public resolver as a secondary DNS server. Clients may use
+it directly and bypass Pi-hole. For DNS redundancy, operate a second Pi-hole.
 
-``` bash
-# check the status
-pihole status
+> **Potential future update:** A Raspberry Pi Zero 2 W redundancy design is
+> recorded in [Future redundant Pi-hole design](pihole-redundancy.md). It is a
+> deferred proposal, not a currently implemented procedure.
 
-# print a summary, once (optimised for small screen)
-pihole -c -e
+After renewing a client's DHCP lease, verify from that client:
 
-# print a summary, refresh every 5" (optimised for small screen)
-pihole -c -r 5
-
-# log file
-tail -f /var/log/pihole.log
+```bash
+nslookup pi.hole
+nslookup example.com
 ```
 
-<br>
+Both lookups should identify the Pi-hole as the responding DNS server. The
+queries should also appear in the Pi-hole Query Log.
 
-## Allow/Block lists
+## 5. OpenVPN clients
 
-Pi-hole supports exact allowlist entries through `pihole allow`. An allowlist should contain only domains that fix a verified problem. Adding broad analytics or advertising domains without a specific reason can weaken blocking and privacy.
+For an OpenVPN server on the same Raspberry Pi, use its VPN address as the DNS
+server pushed to clients. With the repository's default VPN subnet this is:
 
-The repository includes a tested service-compatibility list at [`src/pihole/allowlist-service-compatibility.txt`](../src/pihole/allowlist-service-compatibility.txt). These entries were required with the blocklists used on the owner's systems. Other installations may need only some of them.
+```text
+push "dhcp-option DNS 10.8.0.1"
+```
+
+The maintained OpenVPN procedure includes the exact configuration and checks:
+[Pi-hole DNS filtering](vpn.md#pi-hole-dns-filtering).
+
+After reconnecting an OpenVPN client, confirm that it receives `10.8.0.1` as
+DNS, resolves a normal domain, and appears in Pi-hole's Query Log.
+
+If Pi-hole is installed after OpenVPN, add the DNS push setting and reconnect
+clients. If Pi-hole is removed later, change the pushed DNS address before
+clients reconnect.
+
+## 6. Add the recorded blocklists
+
+In the web interface, open **Lists**, add the following URLs one at a time, and
+give each entry a descriptive comment:
+
+| List | Purpose |
+| --- | --- |
+| `https://osint.digitalside.it/Threat-Intel/lists/latestdomains.txt` | Recently observed threat domains. |
+| `https://v.firebog.net/hosts/Prigent-Crypto.txt` | Cryptocurrency-mining domains. |
+| `https://v.firebog.net/hosts/RPiList-Phishing.txt` | Phishing domains. |
+
+These are retained from the owner's working configuration. Third-party lists
+can change or disappear, so add them individually and remove any list that
+repeatedly fails to download or causes unacceptable false positives.
+
+Update gravity after changing the list selection:
+
+```bash
+sudo pihole updateGravity
+```
+
+Pi-hole already refreshes gravity weekly. No external list updater or daily
+root cron job is required.
+
+## 7. Apply the service-compatibility allowlist
+
+The repository keeps the owner's reviewed compatibility entries in
+[`src/pihole/allowlist-service-compatibility.txt`](../src/pihole/allowlist-service-compatibility.txt).
+They are not universal recommendations. Apply only the entries needed by the
+services used on this installation.
 
 | Domain | Observed reason |
 | --- | --- |
@@ -227,21 +240,15 @@ The repository includes a tested service-compatibility list at [`src/pihole/allo
 | `s.youtube.com` | YouTube watched history did not update. |
 | `lnkd.in` | LinkedIn shortened links were blocked. |
 | `analytics.google.com` | A required metrics dashboard did not load correctly. |
-| `analytics.pinterest.com` | A required Pinterest metrics dashboard did not load correctly. |
+| `analytics.pinterest.com` | A required metrics dashboard did not load correctly. |
 
-New entries apply to Pi-hole's Default Group unless their group assignments are changed in the web interface.
-
-### Review the maintained list
-
-Run from the repository root. This command is read-only:
+From the cloned repository root, preview the active entries:
 
 ```bash
 grep -Ev '^[[:space:]]*(#|$)' src/pihole/allowlist-service-compatibility.txt
 ```
 
-### Apply the maintained list
-
-Review the output above before continuing. The following command changes the Pi-hole allowlist:
+Apply them:
 
 ```bash
 grep -Ev '^[[:space:]]*(#|$)' \
@@ -249,7 +256,7 @@ grep -Ev '^[[:space:]]*(#|$)' \
   | xargs -r sudo pihole allow
 ```
 
-### Verify the entries
+Verify the entries and then test the affected services from a client:
 
 ```bash
 while IFS= read -r domain; do
@@ -258,11 +265,7 @@ done < <(grep -Ev '^[[:space:]]*(#|$)' \
   src/pihole/allowlist-service-compatibility.txt)
 ```
 
-After applying the list, test the affected services from a client that uses this Pi-hole for DNS.
-
-### Roll back the maintained list
-
-This removes only the domains in the maintained file from the allowlist:
+Remove only these maintained entries if they are no longer wanted:
 
 ```bash
 grep -Ev '^[[:space:]]*(#|$)' \
@@ -270,33 +273,19 @@ grep -Ev '^[[:space:]]*(#|$)' \
   | xargs -r sudo pihole allow remove
 ```
 
-### Additional troubleshooting candidate
+## 8. Add useful local hostnames
 
-`redirector.gvt1.com` was previously considered for WINDVision system updates but was never confirmed as required. It is not included in the maintained list. Add it only after Pi-hole query logs demonstrate that blocking it causes the update failure.
+Pi-hole reads local host mappings from `/etc/hosts`. Keep existing lines and
+add only the mappings maintained by this Raspberry Pi:
 
-For more troubleshooting examples, see Pi-hole's [allowlist and denylist documentation](https://docs.pi-hole.net/guides/misc/allowlist-denylist/) and the community's [commonly whitelisted domains discussion](https://discourse.pi-hole.net/t/commonly-whitelisted-domains/212).
-
-<br>
-
-## Extra
-
-### Back up *iptables* rules
-``` bash
-sudo iptables-save > /etc/pihole/rules.v4
-sudo ip6tables-save > /etc/pihole/rules.v6
+```bash
+sudo cp -a /etc/hosts "/etc/hosts.bak.$(date +%Y%m%d-%H%M%S)"
+sudo vim /etc/hosts
 ```
 
-You can restore the rules using:
-``` bash
-sudo iptables-restore < /etc/pihole/rules.v4
-sudo ip6tables-restore < /etc/pihole/rules.v6
-```
+Example structure:
 
-### Hostnames
-
-In order to show the hostnames in the Pi-hole console, you can update the `/etc/hosts` file and assign IP addresses to hostnames:
-
-``` bash
+```text
 127.0.0.1       localhost
 ::1             localhost ip6-localhost ip6-loopback
 ff02::1         ip6-allnodes
@@ -304,84 +293,150 @@ ff02::2         ip6-allrouters
 
 127.0.1.1       {RASPBERRY-PI-HOSTNAME}
 
-# examples bellow
 192.168.1.1     my-router
 192.168.1.2     my-phone
 ```
 
-<br>
+Reload DNS and verify one added name:
 
-### Router configuration
-
-Do not forget to configure the router to use the Raspberry Pi's IP addresses (IPv4 & IPv6) for DNS.
-
-To check find the IPs use:
-``` bash
-ip a
+```bash
+sudo pihole reloaddns
+getent hosts my-router
 ```
 
-<br>
+`getent` should return the address entered in `/etc/hosts`.
 
-### Command line usage
+## 9. Verify and maintain Pi-hole
 
-[https://discourse.pi-hole.net/t/the-pihole-command-with-examples/738](https://discourse.pi-hole.net/t/the-pihole-command-with-examples/738)
-
-<br>
-
-### Indicator LEDs
-
-You can add LEDs on the GPIO pins and let them blink with allowed or blocked DNS queries.
-
-Create a file in `~/Software/pihole/pihole-LEDs.sh`
-``` bash
-mkdir ~/Software/pihole
-cd ~/Software/pihole
-
-touch pihole-LEDs.sh
+```bash
+pihole status
+pihole version
+pihole query example.com
+sudo pihole tail
 ```
 
-Add the following code into the file : [pihole-LEDs.sh](https://github.com/smyrnakis/raspberry-born/blob/main/src/pihole-LEDs.sh)
+Expected results:
 
-*The code above uses GPIO20 and GPIO21 for the GREEN and the RED LED respectively.*
+- `pihole status` reports DNS blocking as enabled.
+- `pihole version` reports the installed Core, Web and FTL versions.
+- `pihole query` explains whether the test domain is known to any configured
+  list.
+- `pihole tail` shows live DNS activity; press `Ctrl+C` to stop it.
 
-Make the script executable:
-``` bash
-chmod a+x ~/Software/pihole/pihole-LEDs.sh
+Before a major Pi-hole update, read the release notes and export a Teleporter
+backup from **Settings > Teleporter** in the web interface. Then update with:
+
+```bash
+sudo pihole -up
 ```
 
-Test the script by *uncommenting* the `echo` lines:
-``` bash
-[...]
+For troubleshooting:
 
-tail -f /var/log/pihole.log | while read INPUT
-do
-    if [[ "$INPUT" == *": gravity blocked"* ]]; then
-        shortBlink red
-        echo "pihole block"     # uncomment this line
-    fi
-    if [[ "$INPUT" == *": reply"* ]]; then
-        shortBlink green
-        echo "pihole allow"     # uncomment this line
-    fi
-done
+```bash
+sudo journalctl -u pihole-FTL --no-pager -n 100
+sudo pihole debug
 ```
 
-``` bash
-sudo bash ~/Software/pihole/pihole-LEDs.sh
+The debug command offers to upload a diagnostic log. Review the prompt and do
+not share the resulting token publicly if the log contains installation data.
+
+## 10. Optional query-activity LEDs
+
+This optional feature flashes a green LED for an answered query and a red LED
+for a blocked query. It uses GPIO Zero and a systemd service instead of the
+deprecated `/sys/class/gpio` interface and root cron.
+
+### Wire the LEDs
+
+Shut down and disconnect power before changing GPIO wiring. Each LED needs its
+own 220 to 330 ohm series resistor.
+
+| Function | BCM GPIO | Physical pin |
+| --- | ---: | ---: |
+| Answered query, green | 20 | 38 |
+| Blocked query, red | 21 | 40 |
+| Ground | n/a | 39 |
+
+### Install the service
+
+Clone this repository if it is not already present:
+
+```bash
+sudo apt update
+sudo apt install git python3-gpiozero
+mkdir -p ~/Software
+git clone https://github.com/smyrnakis/raspberry-born.git \
+  ~/Software/raspberry-born
+cd ~/Software/raspberry-born
 ```
 
-If you can see the LEDs blinking and the messages `pihole block` or `pihole allow` on the console, the script and the hardware are working fine!
+If the repository already exists, review and update it first:
 
-Comment out the two `echo` commands again.
-
-Set the script to run on Raspberry's boot:
-``` bash
-sudo crontab -e
+```bash
+cd ~/Software/raspberry-born
+git status --short
+git pull --ff-only
 ```
 
-and add the line:
-``` bash
-@reboot bash /home/{YOUR-USERNAME}/Software/pihole/pihole-LEDs.sh
+Do not pull over local modifications. Review or preserve them first.
+
+Install the maintained files:
+
+```bash
+sudo install -o root -g root -m 755 \
+  src/pihole/leds/raspi-pihole-leds.py \
+  /usr/local/sbin/raspi-pihole-leds
+sudo install -o root -g root -m 644 \
+  src/pihole/leds/raspi-pihole-leds.default \
+  /etc/default/raspi-pihole-leds
+sudo install -o root -g root -m 644 \
+  src/pihole/leds/raspi-pihole-leds.service \
+  /etc/systemd/system/raspi-pihole-leds.service
+
+sudo systemd-analyze verify \
+  /etc/systemd/system/raspi-pihole-leds.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now raspi-pihole-leds.service
 ```
 
-<br>
+Verify it:
+
+```bash
+systemctl is-enabled raspi-pihole-leds.service
+systemctl is-active raspi-pihole-leds.service
+sudo journalctl -u raspi-pihole-leds.service --no-pager -n 30
+```
+
+The first two commands should print `enabled` and `active`. Generate one normal
+and one blocked lookup from a client. The corresponding LEDs should flash, and
+the service log should not show repeated errors.
+
+To change the GPIO pins, log path, or flash duration:
+
+```bash
+sudo vim /etc/default/raspi-pihole-leds
+sudo systemctl restart raspi-pihole-leds.service
+```
+
+To remove the optional feature:
+
+```bash
+sudo systemctl disable --now raspi-pihole-leds.service
+sudo rm /etc/systemd/system/raspi-pihole-leds.service
+sudo rm /etc/default/raspi-pihole-leds
+sudo rm /usr/local/sbin/raspi-pihole-leds
+sudo systemctl daemon-reload
+```
+
+## References
+
+- [Pi-hole installation](https://docs.pi-hole.net/main/basic-install/)
+- [Pi-hole prerequisites and ports](https://docs.pi-hole.net/main/prerequisites/)
+- [Pi-hole configuration: listening mode](https://docs.pi-hole.net/ftldns/configfile/#dnslisteningmode)
+- [Pi-hole command-line reference](https://docs.pi-hole.net/core/pihole-command/)
+- [Pi-hole updates](https://docs.pi-hole.net/main/update/)
+- [Cloudflare resolver setup and addresses](https://developers.cloudflare.com/1.1.1.1/setup/)
+- [Cloudflare public-resolver privacy](https://developers.cloudflare.com/1.1.1.1/privacy/public-dns-resolver/)
+- [Quad9 service and addresses](https://quad9.net/service/service-addresses-and-features/)
+- [Google Public DNS setup and addresses](https://developers.google.com/speed/public-dns/docs/using)
+- [Google Public DNS privacy](https://developers.google.com/speed/public-dns/privacy)
